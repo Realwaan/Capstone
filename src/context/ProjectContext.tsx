@@ -214,6 +214,43 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [theme]);
 
+  // Automatic GitHub OAuth Code Detection & Exchange
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+      // Exchange code via backend proxy
+      fetch('/api/auth/github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.user) {
+            const userData: GitHubUser = {
+              id: data.user.id,
+              login: data.user.login,
+              name: data.user.name || data.user.login,
+              avatar_url: data.user.avatar_url,
+              email: data.user.email || `${data.user.login}@users.noreply.github.com`,
+              bio: data.user.bio || 'GitHub Contributor',
+              html_url: data.user.html_url,
+              public_repos: data.user.public_repos,
+              connectedAt: new Date().toISOString().split('T')[0]
+            };
+            setGithubUser(userData);
+            // Clean up query param from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            logActivity('authenticated via GitHub OAuth 2.0', `@${userData.login}`);
+          }
+        })
+        .catch(err => {
+          console.error('GitHub OAuth Exchange Error:', err);
+        });
+    }
+  }, []);
+
   const currentMember = members.find(m => m.id === currentMemberId) || members[0];
   const currentRole = currentMember.role;
 
