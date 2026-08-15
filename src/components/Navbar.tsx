@@ -180,7 +180,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
               style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
             />
             <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
-              <div style={{ fontSize: '0.76rem', fontWeight: 700 }}>{currentMember.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 700 }}>{currentMember.name}</span>
+                <span className={`badge ${currentMember.permissionLevel === 'owner' ? 'badge-primary' : currentMember.permissionLevel === 'adviser' ? 'badge-info' : 'badge-neutral'}`} style={{ fontSize: '0.52rem', padding: '0px 4px' }}>
+                  {currentMember.permissionLevel === 'owner' ? '👑 Owner' : currentMember.permissionLevel === 'adviser' ? 'Adviser' : 'Member'}
+                </span>
+              </div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{currentMember.roleTitle}</div>
             </div>
             <ChevronDown size={12} style={{ color: 'var(--text-muted)' }} />
@@ -192,17 +197,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
                 position: 'absolute',
                 right: 0,
                 top: '38px',
-                width: '240px',
+                width: '280px',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-card)',
                 borderRadius: 'var(--radius-md)',
                 boxShadow: 'var(--shadow-lg)',
-                padding: '6px',
+                padding: '8px',
                 zIndex: 1000
               }}
             >
-              <div style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Simulate Member View:
+              <div style={{ padding: '4px 8px', fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                Active Profile & Permissions:
               </div>
               {members.map(m => (
                 <button
@@ -216,22 +221,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '6px 8px',
+                    padding: '8px 10px',
                     borderRadius: 'var(--radius-sm)',
-                    border: 'none',
+                    border: '1px solid',
+                    borderColor: m.id === currentMember.id ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
                     background: m.id === currentMember.id ? 'var(--primary-light)' : 'transparent',
                     color: m.id === currentMember.id ? 'var(--text-accent)' : 'var(--text-primary)',
                     cursor: 'pointer',
-                    textAlign: 'left'
+                    textAlign: 'left',
+                    marginTop: '2px'
                   }}
                 >
                   <img 
                     src={m.avatar} 
                     alt={m.name} 
-                    style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
+                    style={{ width: '28px', height: '28px', borderRadius: '4px', objectFit: 'cover' }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>{m.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>{m.name}</span>
+                      <span className={`badge ${m.permissionLevel === 'owner' ? 'badge-primary' : m.permissionLevel === 'adviser' ? 'badge-info' : 'badge-neutral'}`} style={{ fontSize: '0.52rem', padding: '0px 4px' }}>
+                        {m.permissionLevel === 'owner' ? '👑 Owner' : m.permissionLevel === 'adviser' ? 'Adviser' : 'Member'}
+                      </span>
+                    </div>
                     <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{m.roleTitle}</div>
                   </div>
                   {m.id === currentMember.id && <UserCheck size={14} style={{ color: 'var(--primary)' }} />}

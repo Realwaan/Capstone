@@ -24,10 +24,11 @@ export const initialProject: CapstoneProject = {
 export const initialMembers: TeamMember[] = [
   {
     id: 'm1',
-    name: 'Team Leader',
+    name: 'Team Leader (You)',
     email: 'leader@student.edu',
     role: 'leader',
     roleTitle: 'Project Lead & Architect',
+    permissionLevel: 'owner',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     color: '#6366f1'
   },
@@ -37,6 +38,7 @@ export const initialMembers: TeamMember[] = [
     email: 'developer@student.edu',
     role: 'developer',
     roleTitle: 'Backend / Core Developer',
+    permissionLevel: 'member',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     color: '#10b981'
   },
@@ -46,6 +48,7 @@ export const initialMembers: TeamMember[] = [
     email: 'frontend@student.edu',
     role: 'developer',
     roleTitle: 'Frontend & UI/UX Developer',
+    permissionLevel: 'member',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
     color: '#ec4899'
   },
@@ -55,6 +58,7 @@ export const initialMembers: TeamMember[] = [
     email: 'researcher@student.edu',
     role: 'researcher',
     roleTitle: 'Lead Technical Writer & QA',
+    permissionLevel: 'member',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     color: '#f59e0b'
   },
@@ -64,6 +68,7 @@ export const initialMembers: TeamMember[] = [
     email: 'jayvince.serato@university.edu',
     role: 'adviser',
     roleTitle: 'Capstone Adviser',
+    permissionLevel: 'adviser',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
     color: '#8b5cf6'
   }

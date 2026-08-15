@@ -12,12 +12,15 @@ export interface Subtask {
   completed: boolean;
 }
 
+export type PermissionLevel = 'owner' | 'member' | 'adviser';
+
 export interface TeamMember {
   id: string;
   name: string;
   email: string;
   role: Role;
   roleTitle: string;
+  permissionLevel: PermissionLevel;
   avatar: string;
   color: string;
   githubUsername?: string;

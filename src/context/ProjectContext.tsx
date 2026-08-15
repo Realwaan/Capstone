@@ -11,6 +11,7 @@ import {
   StandupEntry,
   ActivityLog,
   Role,
+  PermissionLevel,
   GitHubUser,
   GitHubCommit,
   GitHubPullRequest
@@ -59,6 +60,16 @@ interface ProjectContextType {
   setGitHubRepo: (repoUrl: string) => void;
   syncGitHubData: () => Promise<void>;
 
+  // Permission Checks
+  isOwner: boolean;
+  isAdviser: boolean;
+  isMember: boolean;
+  canManageSettings: boolean;
+  canDeleteTasks: boolean;
+  canSignOffMilestones: boolean;
+  updateMemberPermission: (memberId: string, level: PermissionLevel) => void;
+  updateMemberRole: (memberId: string, role: Role, roleTitle: string) => void;
+
   // Task Actions
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
@@ -91,7 +102,7 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'capstoneflow_state_v4';
+const LOCAL_STORAGE_KEY = 'capstoneflow_state_v5';
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [project, setProject] = useState<CapstoneProject>(() => {
@@ -253,6 +264,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const currentMember = members.find(m => m.id === currentMemberId) || members[0];
   const currentRole = currentMember.role;
+
+  const isOwner = currentMember.permissionLevel === 'owner';
+  const isAdviser = currentMember.permissionLevel === 'adviser';
+  const isMember = currentMember.permissionLevel === 'member';
+
+  const canManageSettings = isOwner;
+  const canDeleteTasks = isOwner;
+  const canSignOffMilestones = isOwner || isAdviser;
+
+  const updateMemberPermission = (memberId: string, level: PermissionLevel) => {
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissionLevel: level } : m));
+    logActivity('updated member permissions', `Member #${memberId}`);
+  };
+
+  const updateMemberRole = (memberId: string, role: Role, roleTitle: string) => {
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role, roleTitle } : m));
+    logActivity('updated member role title', roleTitle);
+  };
 
   const logActivity = (action: string, target: string) => {
     const newLog: ActivityLog = {
@@ -652,6 +681,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         githubCommits,
         githubPRs,
         isGitHubConnected: !!githubUser,
+        isOwner,
+        isAdviser,
+        isMember,
+        canManageSettings,
+        canDeleteTasks,
+        canSignOffMilestones,
+        updateMemberPermission,
+        updateMemberRole,
         setSearchQuery,
         setFilterCategory,
         toggleTheme,

@@ -41,6 +41,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenNewTask, onEditTas
     moveTaskStatus, 
     toggleSubtask, 
     deleteTask, 
+    canDeleteTasks,
+    isOwner,
     searchQuery,
     filterCategory,
     setFilterCategory 
@@ -453,12 +455,14 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenNewTask, onEditTas
                     <span>• {task.dueDate}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    <button onClick={() => onEditTask(task)} className="btn btn-ghost btn-icon" style={{ width: '26px', height: '26px' }}>
+                    <button onClick={() => onEditTask(task)} className="btn btn-ghost btn-icon" style={{ width: '26px', height: '26px' }} title="Edit Task">
                       <Edit3 size={12} />
                     </button>
-                    <button onClick={() => deleteTask(task.id)} className="btn btn-ghost btn-icon" style={{ width: '26px', height: '26px', color: 'var(--danger)' }}>
-                      <Trash2 size={12} />
-                    </button>
+                    {canDeleteTasks && (
+                      <button onClick={() => deleteTask(task.id)} className="btn btn-ghost btn-icon" style={{ width: '26px', height: '26px', color: 'var(--danger)' }} title="Delete Task (Owner Only)">
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
