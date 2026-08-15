@@ -1,4 +1,4 @@
-# 🏛️ System Architecture & Database Specifications
+# 🏛️ System Architecture & Technical Specifications
 
 ---
 
@@ -7,103 +7,75 @@
 ```mermaid
 graph TD
     subgraph Client [Presentation Tier]
-        A[Next.js / React 19 Client]
-        B[Cornerstone.js DICOM Viewer]
-        C[CapStoneFlow Sprint Tracker]
+        A[Web Client / Mobile Application]
+        B[User Dashboard & Interactive Views]
     end
 
     subgraph API [Application Tier]
-        D[Node.js / FastAPI Gateway]
-        E[Role-Based JWT Authentication]
-        F[WebSocket Event Dispatcher]
-        G[HIPAA Audit Middleware]
-    end
-
-    subgraph AI [Inference Tier]
-        H[PyTorch ONNX Model Engine]
-        I[Grad-CAM Saliency Generator]
+        C[REST / GraphQL / WebSocket API Gateway]
+        D[Authentication & Role-Based Access Control]
+        E[Core Business Logic & Services]
     end
 
     subgraph Data [Data Tier]
-        J[(PostgreSQL Database)]
-        K[(DICOM Cloud Storage / S3)]
+        F[(Relational / Non-Relational Database)]
+        G[(Cloud File & Media Storage)]
     end
 
-    A --> D
-    B --> D
+    A --> C
+    B --> C
     C --> D
     D --> E
-    D --> F
-    D --> G
-    G --> J
-    D --> H
-    H --> I
-    D --> K
+    E --> F
+    E --> G
 ```
 
 ---
 
-## 2. Relational Database Schema (ERD)
+## 2. Database Entity Relationship Diagram (ERD)
 
 ```mermaid
 erDiagram
-    USERS ||--o{ PATIENTS : "manages"
-    PATIENTS ||--o{ SCANS : "has"
-    SCANS ||--o{ INFERENCES : "generates"
-    SCANS ||--o{ TRIAGE_QUEUES : "enqueued_in"
-    USERS ||--o{ AUDIT_LOGS : "triggers"
+    USERS ||--o{ USER_ROLES : "assigned"
+    USERS ||--o{ AUDIT_LOGS : "generates"
+    PROJECTS ||--o{ MODULES : "contains"
+    MODULES ||--o{ RECORDS : "manages"
 
     USERS {
         uuid id PK
         string full_name
         string email
         string password_hash
-        enum role "clinician | radiologist | admin"
+        enum role "admin | user | evaluator"
         datetime created_at
     }
 
-    PATIENTS {
+    PROJECTS {
         uuid id PK
-        string medical_record_no UK
-        string anonymized_patient_code
-        int age
-        enum gender "male | female | other"
-        datetime admission_date
+        string title
+        text description
+        datetime target_date
     }
 
-    SCANS {
+    MODULES {
         uuid id PK
-        uuid patient_id FK
-        string dicom_file_url
-        string modality
-        string projection "PA | AP"
-        datetime scanned_at
+        uuid project_id FK
+        string module_name
+        string status
     }
 
-    INFERENCES {
+    RECORDS {
         uuid id PK
-        uuid scan_id FK
-        float pneumothorax_prob
-        float consolidation_prob
-        float cardiomegaly_prob
-        string heatmap_overlay_url
-        datetime inferred_at
-    }
-
-    TRIAGE_QUEUES {
-        uuid id PK
-        uuid scan_id FK
-        enum priority "urgent | high | medium | low"
-        enum status "pending | reviewing | resolved"
-        datetime enqueued_at
+        uuid module_id FK
+        json data_payload
+        datetime created_at
     }
 
     AUDIT_LOGS {
         uuid id PK
         uuid user_id FK
         string action
-        string target_resource
-        string ip_address
+        string target
         datetime timestamp
     }
 ```

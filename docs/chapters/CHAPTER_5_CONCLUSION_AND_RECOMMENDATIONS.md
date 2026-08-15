@@ -3,16 +3,21 @@
 ---
 
 ## 5.1 Summary of Findings
-Provide a concise synthesis of the primary outcomes, experimental data, and evaluation results established in Chapter 4.
+*(Provide a concise synthesis of key research findings, system accomplishments, and evaluation outcomes).*
+
+---
 
 ## 5.2 Conclusions
-State the evidence-backed conclusions addressing each of the specific problem statements from Chapter 1.
+*(Formulate conclusive statements answering each specific problem statement from Chapter 1).*
+
+---
 
 ## 5.3 Practical & Policy Recommendations
-* **For Hospital Administrators:** Integration protocols for secondary and tertiary triage pipelines.
-* **For Clinical IT Staff:** Server hardware provisioning, network bandwidth management, and backup procedures.
-* **For Regulatory & Medical Ethics Committees:** Continued adherence to data privacy standards and physician oversight mandates.
+* **For End-Users / Industry Practitioners:** `[Recommendations for deployment and day-to-day use]`
+* **For IT & Technical Administrators:** `[Recommendations for system maintenance and infrastructure scaling]`
+* **For Institutional / Policy Stakeholders:** `[Recommendations for standard operating procedures]`
+
+---
 
 ## 5.4 Future Work & Limitations
-* Expansion to multi-slice 3D Computed Tomography (CT) and Magnetic Resonance Imaging (MRI).
-* Integration with Large Language Model (LLM) agents for automated clinical radiology report drafting.
+* `[List potential future extensions, unexplored modalities, or features slated for next-generation releases]`

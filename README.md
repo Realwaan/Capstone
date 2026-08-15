@@ -1,22 +1,22 @@
-# 🎓 MediScan AI: Multi-Modal Clinical Workflow & Diagnostic Triaging System
+# 🎓 [Insert Your Capstone Project Title Here]
 
-[![Capstone Status](https://img.shields.io/badge/Capstone_Phase-Phase_3:_Core_Sprints-6366f1?style=for-the-badge&logo=rocket)](./docs/chapters/CHAPTER_3_METHODOLOGY.md)
-[![Defense Date](https://img.shields.io/badge/Target_Defense-Nov_2026-10b981?style=for-the-badge&logo=calendar)](./docs/README.md)
+[![Capstone Status](https://img.shields.io/badge/Capstone_Phase-Phase_1:_Proposal-6366f1?style=for-the-badge&logo=rocket)](./docs/chapters/CHAPTER_1_INTRODUCTION.md)
+[![Defense Date](https://img.shields.io/badge/Target_Defense-TBD-10b981?style=for-the-badge&logo=calendar)](./docs/README.md)
 [![License](https://img.shields.io/badge/License-Academic_Research-f59e0b?style=for-the-badge)](./LICENSE)
 
-An intelligent decision-support web platform integrating deep learning computer vision and automated EHR analytics for regional clinical emergency triaging.
+> **Project Subtitle / Scope Summary:** *[Insert 1-2 sentence high-level description of your capstone project, system, or research study here].*
 
 ---
 
 ## 👥 Team Roster & Academic Supervision
 
-| Role | Name | Specialization / Focus Area | Contact |
+| Role | Name | Specialization / Focus Area | Contact Email |
 | :--- | :--- | :--- | :--- |
-| **Project Lead** | **Alex Vance** | Full-Stack Architecture, API Security & DevOps | `alex.vance@student.edu` |
-| **ML Engineer** | **Marcus Chen** | Deep Learning, PyTorch, ONNX Quantization | `marcus.chen@student.edu` |
-| **Frontend / UI/UX** | **Sophia Patel** | React, Cornerstone.js DICOM Viewer, Design System | `sophia.patel@student.edu` |
-| **Lead Technical Writer & QA** | **David Kim** | ISO/IEC 25010 Quality Evaluation, Manuscript Drafting | `david.kim@student.edu` |
-| **Capstone Adviser** | **Dr. Arthur C. Martinez, Ph.D.** | Faculty Adviser, Department of Computer Science | `a.martinez@university.edu` |
+| **Project Lead** | `[Student 1 Name]` | Project Architecture, Coordination & Integration | `student1@university.edu` |
+| **Developer / Engineer** | `[Student 2 Name]` | Core Development & Backend Logic | `student2@university.edu` |
+| **Frontend / UI/UX** | `[Student 3 Name]` | Client Application & Design System | `student3@university.edu` |
+| **Technical Writer / QA** | `[Student 4 Name]` | Manuscript Documentation & Quality Evaluation | `student4@university.edu` |
+| **Capstone Adviser** | `[Faculty Adviser Name, Title]` | Faculty Adviser, Department of Computer Science | `adviser@university.edu` |
 
 ---
 
@@ -43,7 +43,7 @@ An intelligent decision-support web platform integrating deep learning computer 
 │   ├── components/                # Modular UI components (Kanban, Gantt, Reports)
 │   ├── context/                   # State management & persistent storage
 │   ├── types/                     # TypeScript definitions
-│   └── data/                      # Initial project schema & fixtures
+│   └── data/                      # Clean project schema & templates
 ├── CONTRIBUTING.md                # Team git branching & commit guidelines
 └── README.md                      # Project master overview
 ```
@@ -54,42 +54,31 @@ An intelligent decision-support web platform integrating deep learning computer 
 
 ```mermaid
 graph TD
-    subgraph Client Layer
-        A[Web Dashboard - Next.js / React]
-        B[Cornerstone.js DICOM Viewer]
-        C[Live Triage Queue Dispatcher]
+    subgraph Client [Presentation Tier]
+        A[Web Client / Mobile App]
+        B[User Dashboard & Interface]
     end
 
-    subgraph API & Backend
-        D[REST & WebSocket Gateway]
-        E[Doctor Auth & HIPAA Audit Middleware]
-        F[Inference Queue Manager - Redis/Celery]
+    subgraph Backend [Application Tier]
+        C[REST / GraphQL / WebSocket API]
+        D[Authentication & Business Logic Middleware]
     end
 
-    subgraph AI & Model Inference
-        G[PyTorch / ONNX Vision Model]
-        H[Grad-CAM Heatmap Generator]
+    subgraph Data [Data Tier]
+        E[(Primary Database - PostgreSQL / MongoDB)]
+        F[(File / Asset Storage)]
     end
 
-    subgraph Data Layer
-        I[(PostgreSQL - Patients & Audit)]
-        J[(DICOM PACS / Cloud S3 Storage)]
-    end
-
-    A --> D
-    B --> D
+    A --> C
+    B --> C
     C --> D
     D --> E
-    E --> I
     D --> F
-    F --> G
-    G --> H
-    D --> J
 ```
 
 ---
 
-## 📖 Thesis Manuscript Quick Links
+## 📖 Thesis Manuscript Drafts
 
 * 📄 **[Chapter 1: Introduction & Problem Background](./docs/chapters/CHAPTER_1_INTRODUCTION.md)**
 * 📄 **[Chapter 2: Review of Related Literature & Studies (RRL)](./docs/chapters/CHAPTER_2_LITERATURE_REVIEW.md)**
@@ -100,32 +89,14 @@ graph TD
 
 ---
 
-## 🚀 Running the Platform Locally
+## 🚀 Running the CapStoneFlow Tracker Locally
 
-### Prerequisites
-* **Node.js**: v18.0 or higher
-* **npm**: v9.0 or higher
-
-### Setup Instructions
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-team-org/capstone.git
-cd capstone
-
-# 2. Install dependencies
+# 1. Install dependencies
 npm install
 
-# 3. Launch development server with CapStoneFlow tracker
+# 2. Start the workflow tracker dev server
 npm run dev
 
-# 4. Open http://localhost:5173 in your browser
+# 3. Open http://localhost:5173 in your browser
 ```
-
----
-
-## 🤝 Git Workflow & Contribution Rules
-
-All team members must follow the **[CONTRIBUTING.md](./CONTRIBUTING.md)** guidelines:
-* **Branch naming:** `feature/task-name`, `docs/chapter-number`, `fix/issue-description`
-* **Pull Request requirement:** At least 1 peer review approval before merging into `main`.
-* **Adviser directives:** Log every critique in `docs/revisions/REVISION_MATRIX.md`.
