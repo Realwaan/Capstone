@@ -7,9 +7,10 @@ import {
   Moon, 
   Clock, 
   UserCheck, 
-  Layers, 
   ChevronDown, 
-  AlertCircle
+  AlertCircle,
+  Command,
+  SlidersHorizontal
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -32,7 +33,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [showMemberMenu, setShowMemberMenu] = useState(false);
 
-  // Defense Countdown calculation
   useEffect(() => {
     const calculateTime = () => {
       const defenseDate = new Date(project.targetDefenseDate).getTime();
@@ -64,146 +64,132 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
       background: 'var(--bg-glass)',
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
-      borderBottom: '1px solid var(--border-subtle)',
-      padding: '12px 32px',
+      borderBottom: '1px solid var(--border-card)',
+      padding: '10px 28px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: '20px'
+      gap: '16px'
     }}>
-      {/* Left: Project Context & Search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1, maxWidth: '600px' }}>
+      {/* Search Input */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, maxWidth: '520px' }}>
         <div style={{ position: 'relative', width: '100%' }}>
           <Search 
-            size={16} 
-            style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} 
+            size={14} 
+            style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} 
           />
           <input 
             type="text" 
-            placeholder="Search tasks, manuscript chapters, adviser notes..." 
+            placeholder="Quick search tasks, chapters, directives (Ctrl+K)..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field"
-            style={{ paddingLeft: '38px', height: '38px', fontSize: '0.85rem' }}
+            style={{ paddingLeft: '34px', height: '34px', fontSize: '0.82rem', borderRadius: 'var(--radius-sm)' }}
           />
         </div>
       </div>
 
-      {/* Center: Live Target Defense Countdown */}
+      {/* Center: Defense Countdown Ticker */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        background: 'rgba(99, 102, 241, 0.08)',
-        border: '1px solid rgba(99, 102, 241, 0.25)',
-        borderRadius: 'var(--radius-full)',
-        padding: '6px 16px',
-        boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+        gap: '8px',
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-sm)',
+        padding: '5px 12px',
+        fontFamily: 'var(--font-mono)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-accent)' }}>
-          <Clock size={15} className="animate-pulse" />
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Final Defense:
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>
+          <Clock size={13} style={{ color: 'var(--primary)' }} />
+          <span>TARGET:</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.82rem' }}>
-          <span style={{ color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px' }}>
-            {timeLeft.days}d
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, fontSize: '0.78rem' }}>
+          <span style={{ color: 'var(--text-primary)' }}>{timeLeft.days}d</span>
           <span style={{ color: 'var(--text-muted)' }}>:</span>
-          <span style={{ color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px' }}>
-            {String(timeLeft.hours).padStart(2, '0')}h
-          </span>
+          <span style={{ color: 'var(--text-primary)' }}>{String(timeLeft.hours).padStart(2, '0')}h</span>
           <span style={{ color: 'var(--text-muted)' }}>:</span>
-          <span style={{ color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px' }}>
-            {String(timeLeft.minutes).padStart(2, '0')}m
-          </span>
+          <span style={{ color: 'var(--text-primary)' }}>{String(timeLeft.minutes).padStart(2, '0')}m</span>
           <span style={{ color: 'var(--text-muted)' }}>:</span>
-          <span style={{ color: '#ec4899', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px' }}>
-            {String(timeLeft.seconds).padStart(2, '0')}s
-          </span>
+          <span style={{ color: 'var(--primary)' }}>{String(timeLeft.seconds).padStart(2, '0')}s</span>
         </div>
       </div>
 
-      {/* Right: Actions & User Persona Switcher */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Quick Add Buttons */}
+      {/* Right Action Controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <button 
           onClick={onOpenNewTask}
           className="btn btn-primary btn-sm"
-          style={{ gap: '6px' }}
+          style={{ gap: '5px' }}
         >
-          <Plus size={15} />
+          <Plus size={14} />
           <span>New Task</span>
         </button>
 
         <button 
           onClick={onOpenNewRevision}
           className="btn btn-secondary btn-sm"
-          style={{ gap: '6px' }}
-          title="Log new critique or revision requested by adviser"
+          style={{ gap: '5px' }}
+          title="Log feedback from adviser"
         >
-          <AlertCircle size={14} style={{ color: '#f59e0b' }} />
+          <AlertCircle size={13} style={{ color: 'var(--warning)' }} />
           <span>Log Feedback</span>
         </button>
 
-        {/* Theme Toggle */}
         <button 
           onClick={toggleTheme}
           className="btn btn-secondary btn-icon"
+          style={{ width: '32px', height: '32px' }}
           title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
         >
-          {theme === 'dark' ? <Sun size={17} style={{ color: '#fbbf24' }} /> : <Moon size={17} style={{ color: '#6366f1' }} />}
+          {theme === 'dark' ? <Sun size={15} style={{ color: '#fbbf24' }} /> : <Moon size={15} style={{ color: 'var(--primary)' }} />}
         </button>
 
-        {/* User Persona Switcher Dropdown */}
+        {/* Member Switcher */}
         <div style={{ position: 'relative' }}>
           <button 
             onClick={() => setShowMemberMenu(!showMemberMenu)}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '8px',
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-card)',
-              borderRadius: 'var(--radius-full)',
-              padding: '4px 12px 4px 5px',
+              borderRadius: 'var(--radius-sm)',
+              padding: '3px 8px 3px 4px',
               cursor: 'pointer',
-              color: 'var(--text-primary)',
-              transition: 'all 0.2s ease'
+              color: 'var(--text-primary)'
             }}
           >
             <img 
               src={currentMember.avatar} 
               alt={currentMember.name} 
-              style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${currentMember.color}` }}
+              style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
             />
-            <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{currentMember.name}</span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{currentMember.roleTitle}</span>
+            <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
+              <div style={{ fontSize: '0.76rem', fontWeight: 700 }}>{currentMember.name}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{currentMember.roleTitle}</div>
             </div>
-            <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />
+            <ChevronDown size={12} style={{ color: 'var(--text-muted)' }} />
           </button>
 
-          {/* Member Dropdown Menu */}
           {showMemberMenu && (
             <div 
               style={{
                 position: 'absolute',
                 right: 0,
-                top: '42px',
-                width: '260px',
+                top: '38px',
+                width: '240px',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-card)',
-                borderRadius: 'var(--radius-lg)',
+                borderRadius: 'var(--radius-md)',
                 boxShadow: 'var(--shadow-lg)',
-                padding: '8px',
-                zIndex: 1000,
-                animation: 'slideUp 0.15s ease'
+                padding: '6px',
+                zIndex: 1000
               }}
             >
-              <div style={{ padding: '6px 10px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Simulate Perspective:
+              <div style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Simulate Member View:
               </div>
               {members.map(m => (
                 <button
@@ -216,31 +202,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
-                    padding: '8px 10px',
-                    borderRadius: 'var(--radius-md)',
+                    gap: '8px',
+                    padding: '6px 8px',
+                    borderRadius: 'var(--radius-sm)',
                     border: 'none',
                     background: m.id === currentMember.id ? 'var(--primary-light)' : 'transparent',
                     color: m.id === currentMember.id ? 'var(--text-accent)' : 'var(--text-primary)',
                     cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.15s ease'
+                    textAlign: 'left'
                   }}
                 >
                   <img 
                     src={m.avatar} 
                     alt={m.name} 
-                    style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover' }}
+                    style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.name}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      {m.roleTitle}
-                    </div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>{m.name}</div>
+                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{m.roleTitle}</div>
                   </div>
-                  {m.id === currentMember.id && <UserCheck size={16} style={{ color: 'var(--primary)' }} />}
+                  {m.id === currentMember.id && <UserCheck size={14} style={{ color: 'var(--primary)' }} />}
                 </button>
               ))}
             </div>

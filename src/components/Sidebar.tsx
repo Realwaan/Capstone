@@ -9,9 +9,9 @@ import {
   Users, 
   FileText, 
   Settings,
-  Sparkles,
-  Award,
-  GraduationCap
+  Terminal,
+  Layers,
+  ChevronRight
 } from 'lucide-react';
 
 export type ViewType = 
@@ -32,39 +32,35 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
   const { project, tasks, revisions, chapters, phases } = useProject();
 
-  // Calculate dynamic badge counts
   const activeTasksCount = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review').length;
   const pendingRevisionsCount = revisions.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
   
-  // Overall manuscript completed sections %
   const totalSections = chapters.reduce((acc, c) => acc + c.sections.length, 0);
   const completedSections = chapters.reduce((acc, c) => acc + c.sections.filter(s => s.completed).length, 0);
-  const manuscriptPct = Math.round((completedSections / totalSections) * 100);
-
-  const currentPhase = phases.find(p => p.id === project.currentPhaseId) || phases[0];
+  const manuscriptPct = totalSections > 0 ? Math.round((completedSections / totalSections) * 100) : 0;
 
   const navItems = [
-    { id: 'dashboard' as ViewType, label: 'Dashboard Overview', icon: LayoutDashboard },
-    { id: 'kanban' as ViewType, label: 'Academic Kanban', icon: KanbanSquare, badge: activeTasksCount, badgeColor: 'badge-primary' },
-    { id: 'timeline' as ViewType, label: 'Milestones & Gantt', icon: Milestone, badge: `Phase ${project.currentPhaseId}`, badgeColor: 'badge-neutral' },
-    { id: 'manuscript' as ViewType, label: 'Chapters (1 to 5)', icon: BookOpen, badge: `${manuscriptPct}%`, badgeColor: 'badge-info' },
+    { id: 'dashboard' as ViewType, label: 'Overview', icon: LayoutDashboard },
+    { id: 'kanban' as ViewType, label: 'Task Matrix & Board', icon: KanbanSquare, badge: activeTasksCount > 0 ? activeTasksCount : undefined, badgeColor: 'badge-primary' },
+    { id: 'timeline' as ViewType, label: 'Milestones & Gantt', icon: Milestone, badge: `P${project.currentPhaseId}`, badgeColor: 'badge-neutral' },
+    { id: 'manuscript' as ViewType, label: 'Manuscript (Ch. 1–5)', icon: BookOpen, badge: `${manuscriptPct}%`, badgeColor: 'badge-info' },
     { id: 'revisions' as ViewType, label: 'Adviser Revisions', icon: MessageSquareCheck, badge: pendingRevisionsCount > 0 ? pendingRevisionsCount : undefined, badgeColor: 'badge-warning' },
     { id: 'team' as ViewType, label: 'Team & Standups', icon: Users },
     { id: 'reports' as ViewType, label: 'Progress Reports', icon: FileText },
-    { id: 'settings' as ViewType, label: 'Project Settings', icon: Settings },
+    { id: 'settings' as ViewType, label: 'Settings & Backups', icon: Settings },
   ];
 
   return (
     <aside 
       className="sidebar"
       style={{
-        width: '260px',
+        width: '250px',
         position: 'fixed',
         top: 0,
         left: 0,
         bottom: 0,
         background: 'var(--bg-sidebar)',
-        borderRight: '1px solid var(--border-subtle)',
+        borderRight: '1px solid var(--border-card)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 200,
@@ -72,57 +68,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
       }}
     >
       {/* Brand Header */}
-      <div style={{ padding: '24px 20px 20px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ padding: '20px 18px 16px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
+            background: 'var(--primary)',
+            color: '#061109',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#ffffff',
-            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+            fontWeight: 800,
+            fontSize: '0.9rem'
           }}>
-            <GraduationCap size={22} />
+            <Terminal size={16} />
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1.12rem', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-              CapStone<span className="gradient-text">Flow</span>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.03em', lineHeight: 1 }}>
+              CAPSTONE<span style={{ color: 'var(--primary)' }}>FLOW</span>
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              Academic Sprint Intelligence
+            <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              WORK OS v2.0
             </div>
           </div>
         </div>
 
-        {/* Current Team & Phase Mini Card */}
+        {/* Project Context Box */}
         <div style={{
-          marginTop: '16px',
+          marginTop: '14px',
           background: 'var(--bg-card)',
           border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 12px'
+          borderRadius: 'var(--radius-sm)',
+          padding: '8px 10px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-accent)' }}>
-              {project.teamName}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              {project.teamName.toUpperCase()}
             </span>
-            <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '1px 6px' }}>
-              Active
-            </span>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }} />
           </div>
-          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.title}>
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.title}>
             {project.title}
           </div>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <div style={{ padding: '0 8px 8px 8px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Workspace Modules
+      <nav style={{ flex: 1, padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <div style={{ padding: '0 8px 6px 8px', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-mono)' }}>
+          Navigation
         </div>
         {navItems.map(item => {
           const Icon = item.icon;
@@ -135,25 +130,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-md)',
+                padding: '8px 10px',
+                borderRadius: 'var(--radius-sm)',
                 border: '1px solid',
-                borderColor: isActive ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
+                borderColor: isActive ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
                 background: isActive ? 'var(--primary-light)' : 'transparent',
                 color: isActive ? 'var(--text-accent)' : 'var(--text-secondary)',
                 fontWeight: isActive ? 700 : 500,
-                fontSize: '0.86rem',
+                fontSize: '0.82rem',
                 cursor: 'pointer',
                 textAlign: 'left',
-                transition: 'all 0.15s ease'
+                transition: 'all 160ms var(--ease-out)'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Icon size={18} style={{ color: isActive ? 'var(--primary)' : 'inherit' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon size={16} style={{ color: isActive ? 'var(--primary)' : 'inherit' }} />
                 <span>{item.label}</span>
               </div>
               {item.badge !== undefined && (
-                <span className={`badge ${item.badgeColor}`} style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                <span className={`badge ${item.badgeColor}`} style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
                   {item.badge}
                 </span>
               )}
@@ -163,15 +158,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
       </nav>
 
       {/* Adviser Card Footer */}
-      <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-subtle)', background: 'rgba(0, 0, 0, 0.15)' }}>
-        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Sparkles size={12} style={{ color: '#8b5cf6' }} />
-          <span>Capstone Adviser</span>
+      <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border-subtle)', background: 'rgba(0, 0, 0, 0.2)' }}>
+        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '3px' }}>
+          ADVISER / FACULTY
         </div>
-        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
           {project.adviser.name}
         </div>
-        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.2 }}>
+        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {project.adviser.department}
         </div>
       </div>
