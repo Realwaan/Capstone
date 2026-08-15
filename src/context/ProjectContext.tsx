@@ -175,13 +175,27 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return localStorage.getItem(`${LOCAL_STORAGE_KEY}_auth`) === 'true';
   });
 
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_theme`);
+    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, currentMemberId);
   }, [currentMemberId]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_theme`, theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (isAuthenticated) {
