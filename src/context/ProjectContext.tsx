@@ -54,6 +54,11 @@ interface ProjectContextType {
   switchMember: (memberId: string) => void;
   switchRole: (role: Role) => void;
   
+  // Authentication & Session
+  isAuthenticated: boolean;
+  loginUser: (memberId: string) => void;
+  signOut: () => void;
+
   // GitHub Actions
   loginWithGitHub: (username: string, token?: string) => Promise<boolean>;
   logoutGitHub: () => void;
@@ -161,10 +166,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [currentMemberId, setCurrentMemberId] = useState<string>('m1');
+  const [currentMemberId, setCurrentMemberId] = useState<string>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_current_user`);
+    return saved || 'm1';
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem(`${LOCAL_STORAGE_KEY}_auth`) === 'true';
+  });
+
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, currentMemberId);
+  }, [currentMemberId]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_auth`, 'true');
+    } else {
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY}_auth`);
+    }
+  }, [isAuthenticated]);
 
   // Sync to local storage
   useEffect(() => {
@@ -296,6 +321,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const loginUser = (memberId: string) => {
+    setCurrentMemberId(memberId);
+    setIsAuthenticated(true);
+    const target = members.find(m => m.id === memberId);
+    logActivity('authenticated into workspace', target?.name || 'Member');
+  };
+
+  const signOut = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem(`${LOCAL_STORAGE_KEY}_auth`);
+    logActivity('signed out of workspace', currentMember.name);
   };
 
   const switchMember = (memberId: string) => {
@@ -677,6 +715,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         theme,
         searchQuery,
         filterCategory,
+        isAuthenticated,
+        loginUser,
+        signOut,
         githubUser,
         githubCommits,
         githubPRs,

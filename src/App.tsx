@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ProjectProvider } from './context/ProjectContext';
+import { ProjectProvider, useProject } from './context/ProjectContext';
 import { Sidebar, ViewType } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
+import { LoginPage } from './components/LoginPage';
 import { DashboardView } from './components/DashboardView';
 import { KanbanView } from './components/KanbanView';
 import { GitHubView } from './components/GitHubView';
@@ -114,10 +115,20 @@ const MainLayout: React.FC = () => {
   );
 };
 
+const AppContent: React.FC = () => {
+  const { isAuthenticated } = useProject();
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return <MainLayout />;
+};
+
 export function App() {
   return (
     <ProjectProvider>
-      <MainLayout />
+      <AppContent />
     </ProjectProvider>
   );
 }

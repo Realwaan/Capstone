@@ -8,7 +8,8 @@ import {
   Clock, 
   UserCheck, 
   ChevronDown, 
-  AlertCircle
+  AlertCircle,
+  LogOut
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 
@@ -24,6 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
     members, 
     currentMember, 
     switchMember, 
+    signOut,
     theme, 
     toggleTheme, 
     searchQuery, 
@@ -249,6 +251,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
                   {m.id === currentMember.id && <UserCheck size={14} style={{ color: 'var(--primary)' }} />}
                 </button>
               ))}
+
+              <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '8px', paddingTop: '6px' }}>
+                <button
+                  onClick={() => {
+                    setShowMemberMenu(false);
+                    signOut();
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    color: 'var(--danger)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    textAlign: 'left'
+                  }}
+                >
+                  <LogOut size={14} />
+                  <span>Lock Workspace & Sign Out</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
