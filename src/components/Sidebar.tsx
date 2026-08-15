@@ -10,13 +10,14 @@ import {
   FileText, 
   Settings,
   Terminal,
-  Layers,
   ChevronRight
 } from 'lucide-react';
+import { GitHubIcon } from './GitHubIcon';
 
 export type ViewType = 
   | 'dashboard' 
   | 'kanban' 
+  | 'github'
   | 'timeline' 
   | 'manuscript' 
   | 'revisions' 
@@ -30,7 +31,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
-  const { project, tasks, revisions, chapters, phases } = useProject();
+  const { project, tasks, revisions, chapters, isGitHubConnected, githubUser } = useProject();
 
   const activeTasksCount = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review').length;
   const pendingRevisionsCount = revisions.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
@@ -42,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
   const navItems = [
     { id: 'dashboard' as ViewType, label: 'Overview', icon: LayoutDashboard },
     { id: 'kanban' as ViewType, label: 'Task Matrix & Board', icon: KanbanSquare, badge: activeTasksCount > 0 ? activeTasksCount : undefined, badgeColor: 'badge-primary' },
+    { id: 'github' as ViewType, label: 'GitHub Repository Hub', icon: GitHubIcon, badge: isGitHubConnected ? `@${githubUser?.login}` : 'Connect', badgeColor: isGitHubConnected ? 'badge-success' : 'badge-neutral' },
     { id: 'timeline' as ViewType, label: 'Milestones & Gantt', icon: Milestone, badge: `P${project.currentPhaseId}`, badgeColor: 'badge-neutral' },
     { id: 'manuscript' as ViewType, label: 'Manuscript (Ch. 1–5)', icon: BookOpen, badge: `${manuscriptPct}%`, badgeColor: 'badge-info' },
     { id: 'revisions' as ViewType, label: 'Adviser Revisions', icon: MessageSquareCheck, badge: pendingRevisionsCount > 0 ? pendingRevisionsCount : undefined, badgeColor: 'badge-warning' },
@@ -117,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
       {/* Navigation Links */}
       <nav style={{ flex: 1, padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <div style={{ padding: '0 8px 6px 8px', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-mono)' }}>
-          Navigation
+          Workspace Modules
         </div>
         {navItems.map(item => {
           const Icon = item.icon;
@@ -148,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
                 <span>{item.label}</span>
               </div>
               {item.badge !== undefined && (
-                <span className={`badge ${item.badgeColor}`} style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
+                <span className={`badge ${item.badgeColor}`} style={{ fontSize: '0.62rem', padding: '1px 5px', textTransform: 'none' }}>
                   {item.badge}
                 </span>
               )}

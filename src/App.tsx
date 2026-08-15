@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { ProjectProvider } from './context/ProjectContext';
-import { Navbar } from './components/Navbar';
 import { Sidebar, ViewType } from './components/Sidebar';
+import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { KanbanView } from './components/KanbanView';
+import { GitHubView } from './components/GitHubView';
 import { TimelineView } from './components/TimelineView';
 import { ManuscriptView } from './components/ManuscriptView';
 import { RevisionsView } from './components/RevisionsView';
@@ -13,22 +14,26 @@ import { SettingsView } from './components/SettingsView';
 import { TaskModal } from './components/TaskModal';
 import { RevisionModal } from './components/RevisionModal';
 import { StandupModal } from './components/StandupModal';
+import { GitHubAuthModal } from './components/GitHubAuthModal';
 import { Task } from './types';
 
-const MainApp: React.FC = () => {
+const MainLayout: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
+  
+  // Modals state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [isStandupModalOpen, setIsStandupModalOpen] = useState(false);
+  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
 
-  const handleOpenEditTask = (task: Task) => {
-    setTaskToEdit(task);
+  const handleOpenNewTask = () => {
+    setEditingTask(null);
     setIsTaskModalOpen(true);
   };
 
-  const handleOpenNewTask = () => {
-    setTaskToEdit(null);
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
     setIsTaskModalOpen(true);
   };
 
@@ -37,15 +42,14 @@ const MainApp: React.FC = () => {
       {/* Sidebar Navigation */}
       <Sidebar activeView={activeView} setActiveView={setActiveView} />
 
-      {/* Main App Canvas */}
+      {/* Main Execution View */}
       <div className="main-content">
-        {/* Top Navbar */}
         <Navbar 
           onOpenNewTask={handleOpenNewTask} 
-          onOpenNewRevision={() => setIsRevisionModalOpen(true)} 
+          onOpenNewRevision={() => setIsRevisionModalOpen(true)}
+          onOpenGitHubAuth={() => setIsGitHubModalOpen(true)}
         />
 
-        {/* Content Body */}
         <main className="content-body">
           {activeView === 'dashboard' && (
             <DashboardView 
@@ -57,7 +61,13 @@ const MainApp: React.FC = () => {
           {activeView === 'kanban' && (
             <KanbanView 
               onOpenNewTask={handleOpenNewTask} 
-              onEditTask={handleOpenEditTask} 
+              onEditTask={handleEditTask} 
+            />
+          )}
+
+          {activeView === 'github' && (
+            <GitHubView 
+              onOpenGitHubAuth={() => setIsGitHubModalOpen(true)} 
             />
           )}
 
@@ -66,15 +76,11 @@ const MainApp: React.FC = () => {
           {activeView === 'manuscript' && <ManuscriptView />}
 
           {activeView === 'revisions' && (
-            <RevisionsView 
-              onOpenNewRevision={() => setIsRevisionModalOpen(true)} 
-            />
+            <RevisionsView onOpenNewRevision={() => setIsRevisionModalOpen(true)} />
           )}
 
           {activeView === 'team' && (
-            <TeamView 
-              onOpenStandupModal={() => setIsStandupModalOpen(true)} 
-            />
+            <TeamView onOpenStandupModal={() => setIsStandupModalOpen(true)} />
           )}
 
           {activeView === 'reports' && <ReportsView />}
@@ -83,14 +89,11 @@ const MainApp: React.FC = () => {
         </main>
       </div>
 
-      {/* Interactive Global Modals */}
+      {/* Modals */}
       <TaskModal 
         isOpen={isTaskModalOpen} 
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setTaskToEdit(null);
-        }} 
-        taskToEdit={taskToEdit} 
+        onClose={() => setIsTaskModalOpen(false)} 
+        taskToEdit={editingTask} 
       />
 
       <RevisionModal 
@@ -102,16 +105,21 @@ const MainApp: React.FC = () => {
         isOpen={isStandupModalOpen} 
         onClose={() => setIsStandupModalOpen(false)} 
       />
+
+      <GitHubAuthModal 
+        isOpen={isGitHubModalOpen} 
+        onClose={() => setIsGitHubModalOpen(false)} 
+      />
     </div>
   );
 };
 
-export const App: React.FC = () => {
+export function App() {
   return (
     <ProjectProvider>
-      <MainApp />
+      <MainLayout />
     </ProjectProvider>
   );
-};
+}
 
 export default App;

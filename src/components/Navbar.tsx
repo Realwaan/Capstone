@@ -8,17 +8,17 @@ import {
   Clock, 
   UserCheck, 
   ChevronDown, 
-  AlertCircle,
-  Command,
-  SlidersHorizontal
+  AlertCircle
 } from 'lucide-react';
+import { GitHubIcon } from './GitHubIcon';
 
 interface NavbarProps {
   onOpenNewTask: () => void;
   onOpenNewRevision: () => void;
+  onOpenGitHubAuth: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision, onOpenGitHubAuth }) => {
   const { 
     project, 
     members, 
@@ -27,7 +27,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
     theme, 
     toggleTheme, 
     searchQuery, 
-    setSearchQuery 
+    setSearchQuery,
+    githubUser,
+    isGitHubConnected
   } = useProject();
 
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -72,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
       gap: '16px'
     }}>
       {/* Search Input */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, maxWidth: '520px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, maxWidth: '480px' }}>
         <div style={{ position: 'relative', width: '100%' }}>
           <Search 
             size={14} 
@@ -80,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
           />
           <input 
             type="text" 
-            placeholder="Quick search tasks, chapters, directives (Ctrl+K)..." 
+            placeholder="Quick search tasks, chapters, directives..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field"
@@ -117,13 +119,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
 
       {/* Right Action Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* GitHub Auth Pill Button */}
+        <button 
+          onClick={onOpenGitHubAuth}
+          className={`btn ${isGitHubConnected ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+          style={{ gap: '6px', fontSize: '0.76rem' }}
+          title="GitHub Integration"
+        >
+          <GitHubIcon size={14} />
+          <span>{isGitHubConnected ? `@${githubUser?.login}` : 'Login with GitHub'}</span>
+        </button>
+
         <button 
           onClick={onOpenNewTask}
-          className="btn btn-primary btn-sm"
+          className="btn btn-secondary btn-sm"
           style={{ gap: '5px' }}
         >
           <Plus size={14} />
-          <span>New Task</span>
+          <span>Task</span>
         </button>
 
         <button 
@@ -133,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewTask, onOpenNewRevision
           title="Log feedback from adviser"
         >
           <AlertCircle size={13} style={{ color: 'var(--warning)' }} />
-          <span>Log Feedback</span>
+          <span>Feedback</span>
         </button>
 
         <button 

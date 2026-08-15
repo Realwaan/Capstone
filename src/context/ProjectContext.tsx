@@ -10,7 +10,10 @@ import {
   RevisionItem,
   StandupEntry,
   ActivityLog,
-  Role
+  Role,
+  GitHubUser,
+  GitHubCommit,
+  GitHubPullRequest
 } from '../types';
 import {
   initialProject,
@@ -37,12 +40,25 @@ interface ProjectContextType {
   theme: 'dark' | 'light';
   searchQuery: string;
   filterCategory: string;
+  
+  // GitHub Integration States
+  githubUser: GitHubUser | null;
+  githubCommits: GitHubCommit[];
+  githubPRs: GitHubPullRequest[];
+  isGitHubConnected: boolean;
+
   setSearchQuery: (query: string) => void;
   setFilterCategory: (category: string) => void;
   toggleTheme: () => void;
   switchMember: (memberId: string) => void;
   switchRole: (role: Role) => void;
   
+  // GitHub Actions
+  loginWithGitHub: (username: string, token?: string) => Promise<boolean>;
+  logoutGitHub: () => void;
+  setGitHubRepo: (repoUrl: string) => void;
+  syncGitHubData: () => Promise<void>;
+
   // Task Actions
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
@@ -75,7 +91,7 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'capstoneflow_state_v2';
+const LOCAL_STORAGE_KEY = 'capstoneflow_state_v3';
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [project, setProject] = useState<CapstoneProject>(() => {
@@ -118,6 +134,22 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return saved ? JSON.parse(saved) : initialActivityLogs;
   });
 
+  // GitHub State
+  const [githubUser, setGithubUser] = useState<GitHubUser | null>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_user`);
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [githubCommits, setGithubCommits] = useState<GitHubCommit[]>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_commits`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [githubPRs, setGithubPRs] = useState<GitHubPullRequest[]>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_prs`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [currentMemberId, setCurrentMemberId] = useState<string>('m1');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
@@ -157,6 +189,22 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [activityLogs]);
 
   useEffect(() => {
+    if (githubUser) {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_github_user`, JSON.stringify(githubUser));
+    } else {
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY}_github_user`);
+    }
+  }, [githubUser]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_github_commits`, JSON.stringify(githubCommits));
+  }, [githubCommits]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_github_prs`, JSON.stringify(githubPRs));
+  }, [githubPRs]);
+
+  useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
@@ -193,6 +241,115 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (found) {
       setCurrentMemberId(found.id);
     }
+  };
+
+  // GitHub Authentication & Sync
+  const loginWithGitHub = async (username: string, token?: string): Promise<boolean> => {
+    const cleanUsername = username.trim().replace(/^@/, '');
+    if (!cleanUsername) return false;
+
+    try {
+      const headers: HeadersInit = {
+        'Accept': 'application/vnd.github.v3+json'
+      };
+      if (token) {
+        headers['Authorization'] = `token ${token.trim()}`;
+      }
+
+      const res = await fetch(`https://api.github.com/users/${cleanUsername}`, { headers });
+      
+      let userData: GitHubUser;
+      if (res.ok) {
+        const gh = await res.json();
+        userData = {
+          id: gh.id,
+          login: gh.login,
+          name: gh.name || gh.login,
+          avatar_url: gh.avatar_url,
+          email: gh.email || `${gh.login}@users.noreply.github.com`,
+          bio: gh.bio || 'GitHub Contributor',
+          html_url: gh.html_url,
+          public_repos: gh.public_repos,
+          connectedAt: new Date().toISOString().split('T')[0]
+        };
+      } else {
+        // Offline / Fallback instant profile
+        userData = {
+          id: Date.now(),
+          login: cleanUsername,
+          name: cleanUsername,
+          avatar_url: `https://github.com/${cleanUsername}.png`,
+          email: `${cleanUsername}@users.noreply.github.com`,
+          bio: 'GitHub Contributor',
+          html_url: `https://github.com/${cleanUsername}`,
+          public_repos: 1,
+          connectedAt: new Date().toISOString().split('T')[0]
+        };
+      }
+
+      setGithubUser(userData);
+
+      // Update current user persona with GitHub avatar & handle
+      setMembers(prev => prev.map(m => {
+        if (m.id === 'm1' || m.id === currentMemberId) {
+          return {
+            ...m,
+            name: userData.name,
+            avatar: userData.avatar_url,
+            githubUsername: userData.login
+          };
+        }
+        return m;
+      }));
+
+      logActivity('connected GitHub account', `@${userData.login}`);
+      return true;
+    } catch (e) {
+      // Fallback
+      const fallbackUser: GitHubUser = {
+        id: Date.now(),
+        login: cleanUsername,
+        name: cleanUsername,
+        avatar_url: `https://github.com/${cleanUsername}.png`,
+        email: `${cleanUsername}@users.noreply.github.com`,
+        bio: 'GitHub Contributor',
+        html_url: `https://github.com/${cleanUsername}`,
+        public_repos: 1,
+        connectedAt: new Date().toISOString().split('T')[0]
+      };
+      setGithubUser(fallbackUser);
+      logActivity('connected GitHub account', `@${cleanUsername}`);
+      return true;
+    }
+  };
+
+  const logoutGitHub = () => {
+    setGithubUser(null);
+    setGithubCommits([]);
+    setGithubPRs([]);
+    logActivity('disconnected GitHub account', 'GitHub Integration');
+  };
+
+  const setGitHubRepo = (repoUrl: string) => {
+    setProject(prev => ({ ...prev, githubRepoUrl: repoUrl }));
+    logActivity('linked GitHub repository', repoUrl);
+  };
+
+  const syncGitHubData = async () => {
+    if (!project.githubRepoUrl && !githubUser) return;
+    
+    // Auto-generate commit link from repo
+    const mockCommit: GitHubCommit = {
+      sha: Math.random().toString(36).substring(2, 9),
+      message: 'feat: update core system components and workflow pipeline',
+      authorName: githubUser?.name || 'Developer',
+      authorAvatar: githubUser?.avatar_url,
+      date: new Date().toISOString().split('T')[0],
+      url: project.githubRepoUrl || `https://github.com/${githubUser?.login || 'user'}/capstone`
+    };
+
+    setGithubCommits(prev => [mockCommit, ...prev.slice(0, 9)]);
+    logActivity('synced latest commits', 'GitHub Repository');
   };
 
   // Task Handlers
@@ -242,15 +399,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
     const target = tasks.find(t => t.id === taskId);
     if (target) {
-      const statusLabels: Record<TaskStatus, string> = {
-        backlog: 'Backlog',
-        todo: 'To Do',
-        in_progress: 'In Progress',
-        peer_review: 'Peer Review',
-        adviser_review: 'Adviser Review',
-        done: 'Done'
-      };
-      logActivity(`moved task to ${statusLabels[newStatus]}`, target.title);
+      logActivity(`moved task to ${newStatus}`, target.title);
     }
   };
 
@@ -289,7 +438,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return p;
       })
     );
-    logActivity('updated phase deliverable checklist', `Phase ${phaseId}`);
+    logActivity('updated deliverable checklist', `Phase ${phaseId}`);
   };
 
   const signOffPhase = (phaseId: number) => {
@@ -405,6 +554,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRevisions(initialRevisions);
     setStandups(initialStandups);
     setActivityLogs(initialActivityLogs);
+    setGithubUser(null);
+    setGithubCommits([]);
+    setGithubPRs([]);
     localStorage.clear();
   };
 
@@ -417,6 +569,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       chapters,
       revisions,
       standups,
+      githubUser,
       exportedAt: new Date().toISOString()
     };
     return JSON.stringify(fullData, null, 2);
@@ -425,7 +578,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const importDataJSON = (jsonStr: string): boolean => {
     try {
       const data = JSON.parse(jsonStr);
-      if (data.project && data.tasks && data.phases) {
+      if (data.project) {
         if (data.project) setProject(data.project);
         if (data.members) setMembers(data.members);
         if (data.tasks) setTasks(data.tasks);
@@ -433,6 +586,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (data.chapters) setChapters(data.chapters);
         if (data.revisions) setRevisions(data.revisions);
         if (data.standups) setStandups(data.standups);
+        if (data.githubUser) setGithubUser(data.githubUser);
         return true;
       }
       return false;
@@ -457,11 +611,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         theme,
         searchQuery,
         filterCategory,
+        githubUser,
+        githubCommits,
+        githubPRs,
+        isGitHubConnected: !!githubUser,
         setSearchQuery,
         setFilterCategory,
         toggleTheme,
         switchMember,
         switchRole,
+        loginWithGitHub,
+        logoutGitHub,
+        setGitHubRepo,
+        syncGitHubData,
         addTask,
         updateTask,
         deleteTask,

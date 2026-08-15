@@ -20,6 +20,7 @@ export interface TeamMember {
   roleTitle: string;
   avatar: string;
   color: string;
+  githubUsername?: string;
 }
 
 export interface Task {
@@ -36,6 +37,8 @@ export interface Task {
   dueDate: string;
   subtasks: Subtask[];
   deliverableUrl?: string;
+  githubIssueNumber?: number;
+  githubPrNumber?: number;
   phaseId: number;
   createdAt: string;
   updatedAt: string;
@@ -84,7 +87,7 @@ export interface ManuscriptChapter {
 export interface RevisionItem {
   id: string;
   date: string;
-  source: string; // e.g. "Dr. Rivera (Adviser)" or "Panelist Prof. Santos"
+  source: string;
   comment: string;
   chapterOrComponent: string;
   actionTaken: string;
@@ -120,10 +123,41 @@ export interface CapstoneProject {
   currentPhaseId: number;
   overallProgress: number;
   teamName: string;
+  githubRepoUrl?: string;
   adviser: {
     name: string;
     email: string;
     department: string;
   };
   panelMembers: string[];
+}
+
+export interface GitHubUser {
+  id: number | string;
+  login: string;
+  name: string;
+  avatar_url: string;
+  email?: string;
+  bio?: string;
+  html_url: string;
+  public_repos?: number;
+  connectedAt: string;
+}
+
+export interface GitHubCommit {
+  sha: string;
+  message: string;
+  authorName: string;
+  authorAvatar?: string;
+  date: string;
+  url: string;
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  state: 'open' | 'closed' | 'merged';
+  author: string;
+  html_url: string;
+  createdAt: string;
 }
