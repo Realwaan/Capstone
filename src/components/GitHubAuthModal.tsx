@@ -27,13 +27,10 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
       setError('Please add VITE_GITHUB_CLIENT_ID to your .env file to use 1-Click OAuth redirect.');
       return;
     }
-    const customRedirect = import.meta.env.VITE_GITHUB_REDIRECT_URI;
+    const redirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI || `${window.location.origin}/auth/callback`;
     const scope = encodeURIComponent('read:user user:email repo');
     
-    // If custom redirect is provided, include it; otherwise omit so GitHub uses the exact registered Callback URL
-    const authUrl = customRedirect 
-      ? `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(customRedirect)}&scope=${scope}`
-      : `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${scope}`;
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
 
     window.location.href = authUrl;
   };

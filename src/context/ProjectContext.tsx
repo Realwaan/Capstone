@@ -240,8 +240,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               connectedAt: new Date().toISOString().split('T')[0]
             };
             setGithubUser(userData);
-            // Clean up query param from URL
-            window.history.replaceState({}, document.title, window.location.pathname);
+            // Clean up query param and redirect back to root dashboard
+            window.history.replaceState({}, document.title, '/');
             logActivity('authenticated via GitHub OAuth 2.0', `@${userData.login}`);
           }
         })
