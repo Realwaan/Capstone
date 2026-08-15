@@ -233,7 +233,7 @@ export const LoginPage: React.FC = () => {
               style={{ borderRadius: '6px', gap: '6px', fontWeight: 700 }}
             >
               <Users size={14} />
-              <span>Team Roster (5 Roles)</span>
+              <span>Team Roster (5 Members + 1 Adviser)</span>
             </button>
             <button
               onClick={() => setAuthTab('github')}

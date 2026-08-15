@@ -35,9 +35,9 @@ export const initialMembers: TeamMember[] = [
   {
     id: 'm2',
     name: 'Developer 1',
-    email: 'developer@student.edu',
+    email: 'developer1@student.edu',
     role: 'developer',
-    roleTitle: 'Backend / Core Developer',
+    roleTitle: 'Backend & Database Engineer',
     permissionLevel: 'member',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     color: '#10b981'
@@ -45,7 +45,7 @@ export const initialMembers: TeamMember[] = [
   {
     id: 'm3',
     name: 'Developer 2',
-    email: 'frontend@student.edu',
+    email: 'developer2@student.edu',
     role: 'developer',
     roleTitle: 'Frontend & UI/UX Developer',
     permissionLevel: 'member',
@@ -54,20 +54,30 @@ export const initialMembers: TeamMember[] = [
   },
   {
     id: 'm4',
+    name: 'Developer 3',
+    email: 'developer3@student.edu',
+    role: 'developer',
+    roleTitle: 'Full-Stack & QA / Testing Engineer',
+    permissionLevel: 'member',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+    color: '#06b6d4'
+  },
+  {
+    id: 'm5',
     name: 'Researcher / Writer',
     email: 'researcher@student.edu',
     role: 'researcher',
-    roleTitle: 'Lead Technical Writer & QA',
+    roleTitle: 'Lead Technical Writer & Literature Specialist',
     permissionLevel: 'member',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     color: '#f59e0b'
   },
   {
-    id: 'm5',
+    id: 'm6',
     name: 'Jay Vince Serato',
     email: 'jayvince.serato@university.edu',
     role: 'adviser',
-    roleTitle: 'Capstone Adviser',
+    roleTitle: 'Capstone Faculty Adviser',
     permissionLevel: 'adviser',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
     color: '#8b5cf6'

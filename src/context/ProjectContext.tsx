@@ -117,7 +117,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [members, setMembers] = useState<TeamMember[]>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_members`);
-    return saved ? JSON.parse(saved) : initialMembers;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 6) {
+          return parsed;
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+    return initialMembers;
   });
 
   const [tasks, setTasks] = useState<Task[]>(() => {

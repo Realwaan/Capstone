@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useProject } from '../context/ProjectContext';
 import { 
   Users, 
   Plus, 
-  MessageSquare, 
   CheckCircle2, 
   Clock, 
-  AlertTriangle, 
-  Award, 
   Mail, 
   UserCheck, 
-  Calendar,
-  Send
+  Send,
+  GraduationCap,
+  ShieldCheck
 } from 'lucide-react';
 
 interface TeamViewProps {
@@ -19,12 +17,15 @@ interface TeamViewProps {
 }
 
 export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
-  const { members, tasks, standups, currentMember } = useProject();
+  const { members, tasks, standups, project } = useProject();
 
-  // Compute member metrics
-  const totalCompletedTasks = tasks.filter(t => t.status === 'done').length;
+  // 5 Student Members
+  const studentMembers = members.filter(m => m.role !== 'adviser');
+  
+  // 1 Capstone Adviser
+  const adviserMember = members.find(m => m.role === 'adviser');
 
-  const memberStats = members.filter(m => m.role !== 'adviser').map(member => {
+  const memberStats = studentMembers.map(member => {
     const memberTasks = tasks.filter(t => t.assigneeId === member.id);
     const completed = memberTasks.filter(t => t.status === 'done').length;
     const inProgress = memberTasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review').length;
@@ -48,6 +49,10 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span className="badge badge-primary">5 Student Members</span>
+            <span className="badge badge-info">1 Faculty Adviser</span>
+          </div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Team Roster & Workload Transparency</h2>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Track individual member sprint contributions, effort logged, and asynchronous daily standups
@@ -60,55 +65,113 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
         </button>
       </div>
 
-      {/* Member Contribution Cards Grid */}
-      <div className="grid-cols-4">
-        {memberStats.map(({ member, total, completed, inProgress, storyPoints, loggedHours, completionRate }) => (
-          <div key={member.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <img 
-                src={member.avatar} 
-                alt={member.name} 
-                style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${member.color}` }}
-              />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {member.name}
+      {/* 5 Student Members Grid */}
+      <div>
+        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>
+          Active Capstone Team Roster (5 Members)
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
+          {memberStats.map(({ member, completed, inProgress, loggedHours, completionRate }) => (
+            <div key={member.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <img 
+                  src={member.avatar} 
+                  alt={member.name} 
+                  style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: `2px solid ${member.color}` }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {member.name}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {member.roleTitle}
+                  </div>
+                  <span className={`badge ${member.permissionLevel === 'owner' ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: '0.55rem', padding: '1px 5px', marginTop: '2px' }}>
+                    {member.permissionLevel === 'owner' ? '👑 Owner' : 'Member'}
+                  </span>
                 </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  {member.roleTitle}
+              </div>
+
+              {/* Metrics Breakdown */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', background: 'var(--bg-elevated)', padding: '8px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Done</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--success)' }}>{completed}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--warning)' }}>{inProgress}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Hours</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--primary)' }}>{loggedHours}h</div>
+                </div>
+              </div>
+
+              {/* Completion Bar */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  <span>Sprint Task Completion</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{completionRate}%</span>
+                </div>
+                <div className="progress-bar-container" style={{ height: '6px' }}>
+                  <div className="progress-bar-fill" style={{ width: `${completionRate}%` }} />
                 </div>
               </div>
             </div>
+          ))}
+        </div>
+      </div>
 
-            {/* Metrics Breakdown */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', background: 'var(--bg-elevated)', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-              <div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Done</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--success)' }}>{completed}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--warning)' }}>{inProgress}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Hours</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary)' }}>{loggedHours}h</div>
-              </div>
+      {/* 1 Capstone Adviser Supervision Card */}
+      {adviserMember && (
+        <div 
+          className="card" 
+          style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-card)',
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr auto',
+            alignItems: 'center',
+            gap: '20px',
+            padding: '18px 24px'
+          }}
+        >
+          <img 
+            src={adviserMember.avatar} 
+            alt={adviserMember.name} 
+            style={{ width: '56px', height: '56px', borderRadius: '12px', objectFit: 'cover', border: '2px solid #8b5cf6' }} 
+          />
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {adviserMember.name}
+              </span>
+              <span className="badge badge-info" style={{ gap: '4px' }}>
+                <GraduationCap size={12} />
+                <span>Capstone Faculty Adviser</span>
+              </span>
             </div>
-
-            {/* Completion Bar */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                <span>Sprint Task Completion</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{completionRate}%</span>
-              </div>
-              <div className="progress-bar-container" style={{ height: '6px' }}>
-                <div className="progress-bar-fill" style={{ width: `${completionRate}%` }} />
-              </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              {project.adviser.department} • Official Academic Supervision
             </div>
           </div>
-        ))}
-      </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <a 
+              href={`mailto:${adviserMember.email}`}
+              className="btn btn-secondary btn-sm"
+              style={{ gap: '6px' }}
+            >
+              <Mail size={14} />
+              <span>Consultation Email</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Daily Standups Log Section */}
       <div className="card">
@@ -163,7 +226,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                  <div style={{ background: 'rgba(0,0,0,0.15)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.06)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--success)', marginBottom: '4px', textTransform: 'uppercase' }}>
                       ✅ Yesterday's Accomplishments
                     </div>
@@ -172,7 +235,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                     </div>
                   </div>
 
-                  <div style={{ background: 'rgba(0,0,0,0.15)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.06)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '4px', textTransform: 'uppercase' }}>
                       🎯 Today's Focus
                     </div>
@@ -181,7 +244,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                     </div>
                   </div>
 
-                  <div style={{ background: 'rgba(0,0,0,0.15)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.06)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', marginBottom: '4px', textTransform: 'uppercase' }}>
                       ⚠️ Blockers / Dependencies
                     </div>

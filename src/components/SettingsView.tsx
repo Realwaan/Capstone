@@ -123,7 +123,7 @@ export const SettingsView: React.FC = () => {
           <div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Team Member Permissions & Access Matrix</h3>
             <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-              Configure role titles and access permissions across your 5-member capstone team
+              Configure role titles and access permissions across your 5 student members and 1 faculty adviser
             </p>
           </div>
           <span className="badge badge-primary">
