@@ -140,6 +140,7 @@ export const RevisionsView: React.FC<RevisionsViewProps> = ({ onOpenNewRevision 
             return (
               <div 
                 key={rev.id}
+                className="stagger-item"
                 style={{
                   padding: '18px 20px',
                   borderBottom: index < filteredRevisions.length - 1 ? '1px solid var(--border-subtle)' : 'none',

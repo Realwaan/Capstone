@@ -212,7 +212,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenNewTask, onEditTas
                       key={task.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, task.id)}
-                      className="card"
+                      className="card stagger-item"
                       style={{
                         padding: '14px',
                         cursor: 'grab',

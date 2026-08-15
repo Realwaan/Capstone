@@ -1,22 +1,29 @@
 /* ==========================================================================
    CapStoneFlow Design System & Tokens
+   Emil Kowalski Design Engineering & Fluid Motion Principles
    ========================================================================== */
 
 :root {
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
+  /* Emil Kowalski Custom Strong Easing Curves */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+
   /* Theme: Dark (Default) */
-  --bg-app: #090d16;
-  --bg-sidebar: #0d121f;
-  --bg-card: rgba(17, 24, 39, 0.75);
-  --bg-card-hover: rgba(26, 36, 58, 0.85);
-  --bg-elevated: #1a2234;
-  --bg-input: rgba(15, 23, 42, 0.6);
-  --bg-glass: rgba(13, 18, 31, 0.75);
+  --bg-app: #080c14;
+  --bg-sidebar: #0b101c;
+  --bg-card: rgba(15, 23, 42, 0.7);
+  --bg-card-hover: rgba(24, 34, 58, 0.85);
+  --bg-elevated: #131c31;
+  --bg-input: rgba(11, 16, 28, 0.75);
+  --bg-glass: rgba(11, 16, 28, 0.8);
 
   --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-card: rgba(255, 255, 255, 0.12);
+  --border-card: rgba(255, 255, 255, 0.11);
   --border-focus: #6366f1;
 
   --text-primary: #f8fafc;
@@ -41,10 +48,10 @@
   --info-bg: rgba(6, 182, 212, 0.15);
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.25);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.4), 0 2px 6px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.6), 0 6px 12px -2px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 28px rgba(99, 102, 241, 0.28);
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -57,11 +64,11 @@
 html.light {
   --bg-app: #f8fafc;
   --bg-sidebar: #ffffff;
-  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-card: rgba(255, 255, 255, 0.95);
   --bg-card-hover: rgba(248, 250, 252, 1);
   --bg-elevated: #ffffff;
   --bg-input: #ffffff;
-  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass: rgba(255, 255, 255, 0.88);
 
   --border-subtle: #e2e8f0;
   --border-card: #e2e8f0;
@@ -78,9 +85,9 @@ html.light {
   --primary-glow: rgba(79, 70, 229, 0.2);
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-  --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.15);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.12), 0 6px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 24px rgba(79, 70, 229, 0.18);
 }
 
 /* ==========================================================================
@@ -103,16 +110,16 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+    radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.06) 0px, transparent 50%);
   background-attachment: fixed;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -122,6 +129,7 @@ body {
 ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.25);
   border-radius: 9999px;
+  transition: background 180ms var(--ease-out);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -134,7 +142,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   color: var(--text-primary);
 }
 
@@ -150,8 +158,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .glass-panel {
   background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-card);
   box-shadow: var(--shadow-md);
 }
@@ -172,7 +180,7 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: column;
   min-width: 0;
   padding-left: 260px;
-  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: padding-left 220ms var(--ease-out);
 }
 
 @media (max-width: 1024px) {
@@ -196,7 +204,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ==========================================================================
-   Buttons & Interactive Elements
+   Emil Kowalski Micro-Interactions & Responsive Buttons
    ========================================================================== */
 
 .btn {
@@ -210,22 +218,31 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: var(--font-sans);
   text-decoration: none;
   white-space: nowrap;
+  user-select: none;
+  /* Specific properties to avoid transition: all */
+  transition: transform 160ms var(--ease-out), filter 160ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+
+/* Emil's Button Press Physics: Subtle scale down on active */
+.btn:active {
+  transform: scale(0.97) !important;
 }
 
 .btn-primary {
   background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
 }
 
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
-  filter: brightness(1.08);
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5);
+    filter: brightness(1.08);
+  }
 }
 
 .btn-secondary {
@@ -234,10 +251,12 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border-card);
 }
 
-.btn-secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .btn-secondary:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+  }
 }
 
 .btn-ghost {
@@ -245,9 +264,11 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-secondary);
 }
 
-.btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+  }
 }
 
 .btn-success {
@@ -256,8 +277,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-sm {
-  padding: 5px 10px;
-  font-size: 0.75rem;
+  padding: 5px 11px;
+  font-size: 0.76rem;
   border-radius: var(--radius-sm);
 }
 
@@ -282,6 +303,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-full);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
 }
 
 .badge-primary { background: var(--primary-light); color: var(--text-accent); border: 1px solid rgba(99, 102, 241, 0.3); }
@@ -300,7 +322,7 @@ h1, h2, h3, h4, h5, h6 {
 .tag-design { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }
 
 /* ==========================================================================
-   Cards & Grids
+   Cards & Stagger Animations
    ========================================================================== */
 
 .card {
@@ -308,15 +330,18 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   padding: 20px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: all 0.25s ease;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform 200ms var(--ease-out), border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
   box-shadow: var(--shadow-sm);
   position: relative;
 }
 
-.card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: var(--shadow-md);
+  }
 }
 
 .grid-cols-4 {
@@ -346,6 +371,27 @@ h1, h2, h3, h4, h5, h6 {
   .grid-cols-4, .grid-cols-3, .grid-cols-2 { grid-template-columns: 1fr; }
 }
 
+/* Stagger List Animation Helpers */
+.stagger-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: staggerFadeIn 220ms var(--ease-out) forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 35ms; }
+.stagger-item:nth-child(3) { animation-delay: 70ms; }
+.stagger-item:nth-child(4) { animation-delay: 105ms; }
+.stagger-item:nth-child(5) { animation-delay: 140ms; }
+.stagger-item:nth-child(6) { animation-delay: 175ms; }
+
+@keyframes staggerFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ==========================================================================
    Progress Bar
    ========================================================================== */
@@ -363,7 +409,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
   border-radius: var(--radius-full);
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 400ms var(--ease-spring);
 }
 
 /* ==========================================================================
@@ -379,7 +425,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
   outline: none;
 }
 
@@ -397,13 +443,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ==========================================================================
-   Modal Overlay
+   Emil Kowalski Origin-Aware Modal Animation (Never scale from 0)
    ========================================================================== */
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
@@ -411,7 +457,7 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
-  animation: fadeIn 0.2s ease;
+  animation: modalBackdropFadeIn 180ms var(--ease-out);
 }
 
 .modal-content {
@@ -424,30 +470,40 @@ h1, h2, h3, h4, h5, h6 {
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
   position: relative;
-  animation: slideUp 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Modals stay centered and scale from 0.95 (never 0) */
+  transform-origin: center center;
+  animation: modalSlideUp 220ms var(--ease-out);
 }
 
-/* ==========================================================================
-   Keyframe Animations
-   ========================================================================== */
-
-@keyframes fadeIn {
+@keyframes modalBackdropFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); }
-  50% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.45); }
-}
+/* ==========================================================================
+   Reduced Motion Accessibility (Prefers-reduced-motion)
+   ========================================================================== */
 
-.animate-glow {
-  animation: pulseGlow 3s infinite;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ==========================================================================

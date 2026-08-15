@@ -320,6 +320,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveView, onO
                 return (
                   <div 
                     key={task.id}
+                    className="stagger-item"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
