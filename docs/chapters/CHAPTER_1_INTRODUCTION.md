@@ -2,7 +2,7 @@
 
 **Project Title:** `[Insert Official Project Title Here]`  
 **Authors:** `[Insert Team Member Names]`  
-**Adviser:** `[Insert Faculty Adviser Name]`  
+**Adviser:** `Jay Vince Serato`  
 **Academic Year:** `2026–2027`  
 
 ---

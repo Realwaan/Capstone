@@ -16,7 +16,7 @@
 | **Developer / Engineer** | `[Student 2 Name]` | Core Development & Backend Logic | `student2@university.edu` |
 | **Frontend / UI/UX** | `[Student 3 Name]` | Client Application & Design System | `student3@university.edu` |
 | **Technical Writer / QA** | `[Student 4 Name]` | Manuscript Documentation & Quality Evaluation | `student4@university.edu` |
-| **Capstone Adviser** | `[Faculty Adviser Name, Title]` | Faculty Adviser, Department of Computer Science | `adviser@university.edu` |
+| **Capstone Adviser** | `Jay Vince Serato` | Faculty Adviser, Department of Computer Science / IT | `jayvince.serato@university.edu` |
 
 ---
 

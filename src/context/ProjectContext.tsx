@@ -91,7 +91,7 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'capstoneflow_state_v3';
+const LOCAL_STORAGE_KEY = 'capstoneflow_state_v4';
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [project, setProject] = useState<CapstoneProject>(() => {

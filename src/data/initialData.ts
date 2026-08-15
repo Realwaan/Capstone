@@ -10,9 +10,9 @@ export const initialProject: CapstoneProject = {
   overallProgress: 0,
   teamName: 'Capstone Team',
   adviser: {
-    name: 'Faculty Adviser Name',
-    email: 'adviser@university.edu',
-    department: 'Department of Computer Science / Engineering',
+    name: 'Jay Vince Serato',
+    email: 'jayvince.serato@university.edu',
+    department: 'Department of Computer Science / Information Technology',
   },
   panelMembers: [
     'Panel Chair / Specialist',
@@ -60,8 +60,8 @@ export const initialMembers: TeamMember[] = [
   },
   {
     id: 'm5',
-    name: 'Faculty Adviser',
-    email: 'adviser@university.edu',
+    name: 'Jay Vince Serato',
+    email: 'jayvince.serato@university.edu',
     role: 'adviser',
     roleTitle: 'Capstone Adviser',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
@@ -249,7 +249,7 @@ export const initialActivityLogs: ActivityLog[] = [
     id: 'act-1',
     timestamp: 'Just now',
     userId: 'm1',
-    action: 'initialized a fresh workflow',
-    target: 'CapStoneFlow Workspace'
+    action: 'assigned Capstone Adviser',
+    target: 'Jay Vince Serato'
   }
 ];
