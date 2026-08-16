@@ -1,0 +1,109 @@
+/* ==========================================================================
+   Linear + Raycast Extracted Design Primitives (tokens.css)
+   ========================================================================== */
+
+:root {
+  /* Typography */
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+
+  /* Motion & Spring Physics */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Linear Obsidian Dark Theme Primitives */
+  --bg-app: #08090c;
+  --bg-sidebar: rgba(13, 15, 22, 0.82);
+  --bg-card: rgba(18, 21, 30, 0.68);
+  --bg-card-hover: rgba(26, 31, 44, 0.85);
+  --bg-elevated: rgba(22, 26, 38, 0.78);
+  --bg-input: rgba(11, 13, 19, 0.9);
+  --bg-glass: rgba(14, 16, 24, 0.8);
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-card: rgba(255, 255, 255, 0.11);
+  --border-highlight: rgba(255, 255, 255, 0.18);
+  --border-focus: #5e6ad2;
+
+  --text-primary: #f7f8f8;
+  --text-secondary: #8a8f98;
+  --text-muted: #575b63;
+  --text-accent: #5e6ad2;
+
+  /* Linear & Raycast Accents */
+  --primary: #5e6ad2;
+  --primary-hover: #4f5bc0;
+  --primary-light: rgba(94, 106, 210, 0.15);
+  --primary-glow: rgba(94, 106, 210, 0.3);
+
+  --secondary: #0a84ff;
+  --success: #30d158;
+  --success-bg: rgba(48, 209, 88, 0.14);
+  --warning: #f2994a;
+  --warning-bg: rgba(242, 153, 74, 0.14);
+  --danger: #ff6363;
+  --danger-bg: rgba(255, 99, 99, 0.14);
+  --info: #64d2ff;
+  --info-bg: rgba(100, 210, 255, 0.14);
+
+  /* Linear Status Accents */
+  --status-backlog: #8a8f98;
+  --status-todo: #5e6ad2;
+  --status-in-progress: #f2994a;
+  --status-peer-review: #9d5bd2;
+  --status-adviser-review: #ff6363;
+  --status-done: #30d158;
+
+  /* Shadows with Specular Hairline Top Highlight */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+}
+
+/* Linear + Raycast Light Theme */
+html.light {
+  --bg-app: #f7f8f9;
+  --bg-sidebar: rgba(255, 255, 255, 0.88);
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-card-hover: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-input: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.92);
+
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-card: rgba(0, 0, 0, 0.09);
+  --border-highlight: rgba(0, 0, 0, 0.15);
+  --border-focus: #5e6ad2;
+
+  --text-primary: #0e1017;
+  --text-secondary: #575b63;
+  --text-muted: #8a8f98;
+  --text-accent: #5e6ad2;
+
+  --primary: #5e6ad2;
+  --primary-hover: #4f5bc0;
+  --primary-light: rgba(94, 106, 210, 0.1);
+  --primary-glow: rgba(94, 106, 210, 0.2);
+
+  --secondary: #0090ff;
+  --success: #30a46c;
+  --success-bg: rgba(48, 164, 108, 0.12);
+  --warning: #e58530;
+  --warning-bg: rgba(229, 133, 48, 0.12);
+  --danger: #e5484d;
+  --danger-bg: rgba(229, 72, 77, 0.12);
+  --info: #0090ff;
+  --info-bg: rgba(0, 144, 255, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 1);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.09), inset 0 1px 0 rgba(255, 255, 255, 1);
+}

@@ -1,15 +1,26 @@
-export type Role = 'leader' | 'developer' | 'researcher' | 'adviser' | 'coordinator';
+export type Role = 'leader' | 'developer' | 'qa' | 'researcher' | 'adviser' | 'coordinator';
 
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'peer_review' | 'adviser_review' | 'done';
 
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
 
-export type TaskCategory = 'code' | 'manuscript' | 'research' | 'testing' | 'hardware' | 'design';
+export type TaskCategory = 'code' | 'feature' | 'backend' | 'frontend' | 'database' | 'testing' | 'devops' | 'architecture' | 'design' | 'docs';
 
 export interface Subtask {
   id: string;
   title: string;
   completed: boolean;
+}
+
+export interface TicketEvent {
+  id: string;
+  type: 'claimed' | 'unclaimed' | 'resolved' | 'reviewed' | 'closed' | 'reopened';
+  username: string;
+  timestamp: string;
+  oldStatus: string;
+  newStatus: string;
+  note?: string;
+  prUrl?: string;
 }
 
 export type PermissionLevel = 'owner' | 'member' | 'adviser';
@@ -45,7 +56,44 @@ export interface Task {
   phaseId: number;
   createdAt: string;
   updatedAt: string;
+  attachments?: TaskAttachment[];
   tags?: string[];
+  
+  // Ticket Specification & Discord-style Claim System
+  problemStatement?: string;
+  whatToFix?: string[];
+  acceptanceCriteria?: { id: string; text: string; completed: boolean }[];
+  relatedFiles?: string[];
+  folder?: string;
+  createdByUsername?: string;
+  claimedAt?: string;
+  claimedByUsername?: string;
+  prUrl?: string;
+  resolvedAt?: string;
+  resolvedByUsername?: string;
+  reviewedAt?: string;
+  reviewedByUsername?: string;
+  closedAt?: string;
+  closedByUsername?: string;
+  ticketEvents?: TicketEvent[];
+}
+
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  fileType?: string;
+  uploadedAt: string;
+  uploadedBy?: string;
+}
+
+export interface PhaseDeliverable {
+  id: string;
+  title: string;
+  completed: boolean;
+  requiredForDefense: boolean;
+  attachments?: TaskAttachment[];
 }
 
 export interface MilestonePhase {
@@ -55,12 +103,7 @@ export interface MilestonePhase {
   targetDate: string;
   status: 'completed' | 'in_progress' | 'upcoming';
   progressPercentage: number;
-  keyDeliverables: {
-    id: string;
-    title: string;
-    completed: boolean;
-    requiredForDefense: boolean;
-  }[];
+  keyDeliverables: PhaseDeliverable[];
   adviserSignOff: boolean;
   signedOffDate?: string;
 }
@@ -149,11 +192,29 @@ export interface GitHubUser {
 
 export interface GitHubCommit {
   sha: string;
+  shortSha?: string;
   message: string;
+  description?: string;
   authorName: string;
+  authorUsername?: string;
   authorAvatar?: string;
   date: string;
   url: string;
+  branch?: string;
+  verified?: boolean;
+  stats?: {
+    additions: number;
+    deletions: number;
+    totalFiles: number;
+  };
+  changedFiles?: Array<{
+    filename: string;
+    status: 'added' | 'modified' | 'deleted';
+    additions: number;
+    deletions: number;
+    patch?: string;
+  }>;
+  linkedTaskId?: string;
 }
 
 export interface GitHubPullRequest {
@@ -161,6 +222,11 @@ export interface GitHubPullRequest {
   title: string;
   state: 'open' | 'closed' | 'merged';
   author: string;
+  authorAvatar?: string;
   html_url: string;
+  branch: string;
+  targetBranch: string;
   createdAt: string;
+  reviewStatus?: 'approved' | 'changes_requested' | 'pending';
+  linkedTaskId?: string;
 }

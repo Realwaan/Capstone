@@ -1,66 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { 
   Terminal, 
   ShieldCheck, 
   ArrowRight, 
   Lock, 
-  Users, 
-  Sparkles, 
   CheckCircle2, 
   Clock, 
   Milestone,
   AlertCircle,
-  ExternalLink,
-  ChevronRight,
   Sun,
-  Moon
+  Moon,
+  KeyRound,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 
 export const LoginPage: React.FC = () => {
   const { 
     project, 
-    members, 
-    loginUser, 
-    loginWithGitHub, 
     theme, 
-    toggleTheme 
+    toggleTheme,
+    loginUser,
+    loginWithGitHub,
+    members
   } = useProject();
 
-  const [authTab, setAuthTab] = useState<'roster' | 'github'>('roster');
-  const [githubHandle, setGithubHandle] = useState('');
-  const [githubToken, setGithubToken] = useState('');
   const [loading, setLoading] = useState(false);
+  const [handleLoading, setHandleLoading] = useState(false);
+  const [githubHandle, setGithubHandle] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
 
+  // Check for error parameters in URL (e.g. access_denied)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error_description') || urlParams.get('error');
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+  }, []);
+
   const handleOAuthRedirect = () => {
     if (!clientId) {
-      setError('Please configure VITE_GITHUB_CLIENT_ID in your .env file or use Direct Handle Connect.');
-      return;
-    }
-    const redirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI || `${window.location.origin}/auth/callback`;
-    const scope = encodeURIComponent('read:user user:email repo');
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
-  };
-
-  const handleDirectGitHub = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!githubHandle.trim()) {
-      setError('Please enter your GitHub username or organization handle.');
+      setError('Missing VITE_GITHUB_CLIENT_ID in your .env file. Please check your configuration.');
       return;
     }
     setLoading(true);
     setError(null);
 
-    const ok = await loginWithGitHub(githubHandle, githubToken);
-    setLoading(false);
-    if (ok) {
-      // loginWithGitHub automatically authenticates
-    } else {
-      setError('Could not verify GitHub profile.');
+    const redirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI;
+    const scope = encodeURIComponent('read:user user:email repo');
+    
+    // If VITE_GITHUB_REDIRECT_URI is set, include it; otherwise omit redirect_uri so GitHub uses the exact registered callback URL
+    const authUrl = redirectUri 
+      ? `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`
+      : `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${scope}`;
+    
+    window.location.href = authUrl;
+  };
+
+  const handleDirectGitHubLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!githubHandle.trim()) return;
+    setHandleLoading(true);
+    setError(null);
+    try {
+      const success = await loginWithGitHub(githubHandle.trim());
+      if (!success) {
+        setError('Failed to authenticate with GitHub. Please check the username.');
+      }
+    } catch {
+      setError('An error occurred during GitHub authentication.');
+    } finally {
+      setHandleLoading(false);
     }
   };
 
@@ -94,15 +109,15 @@ export const LoginPage: React.FC = () => {
         className="card"
         style={{
           width: '100%',
-          maxWidth: '1080px',
+          maxWidth: '960px',
           display: 'grid',
-          gridTemplateColumns: '1fr 1.15fr',
+          gridTemplateColumns: '1fr 1.1fr',
           padding: '0',
           overflow: 'hidden',
           border: '1px solid var(--border-card)',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-lg)',
-          minHeight: '620px'
+          minHeight: '560px'
         }}
       >
         {/* Left Side: System Telemetry & Mission Brand */}
@@ -121,8 +136,8 @@ export const LoginPage: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
               <div style={{
-                width: '34px',
-                height: '34px',
+                width: '36px',
+                height: '36px',
                 borderRadius: '8px',
                 background: 'var(--primary)',
                 color: '#061109',
@@ -148,26 +163,26 @@ export const LoginPage: React.FC = () => {
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
-              padding: '12px 14px',
+              padding: '14px',
               marginBottom: '20px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                 <span className="badge badge-primary">2nd Year BSCS</span>
-                <span className="badge badge-neutral">Group Workspace</span>
+                <span className="badge badge-neutral">GitHub OAuth 2.0</span>
               </div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px', lineHeight: 1.3 }}>
                 {project.title}
               </div>
-              <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: 1.35 }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.35 }}>
                 {project.subtitle}
               </div>
             </div>
 
             {/* Live Telemetry List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                 <CheckCircle2 size={14} style={{ color: 'var(--primary)' }} />
-                <span><strong>Role-Based Access Control:</strong> Owner & Member Permissions</span>
+                <span><strong>Live Team Profiles:</strong> Fetched dynamically from GitHub</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                 <Milestone size={14} style={{ color: '#38bdf8' }} />
@@ -185,192 +200,165 @@ export const LoginPage: React.FC = () => {
             background: 'rgba(0, 0, 0, 0.25)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-sm)',
-            padding: '12px',
-            marginTop: '20px'
+            padding: '12px 14px',
+            marginTop: '24px'
           }}>
             <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '2px' }}>
               CAPSTONE ADVISER
             </div>
-            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
               {project.adviser.name}
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
               {project.adviser.department}
             </div>
           </div>
         </div>
 
-        {/* Right Side: Auth Command Gateway */}
+        {/* Right Side: GitHub OAuth 2.0 Gateway */}
         <div style={{ padding: '36px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <Lock size={15} style={{ color: 'var(--primary)' }} />
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                SECURE AUTHENTICATION GATE
+              <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>
+                SINGLE SIGN-ON GATEWAY
               </span>
             </div>
-            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              Sign in to CapStoneFlow
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              Sign in with GitHub
             </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Choose your team member identity or authenticate via GitHub
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+              Authenticate with your personal GitHub account to join the capstone workspace with your live profile picture.
             </p>
           </div>
 
-          {/* Mode Switcher Tabs */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-card)',
-            borderRadius: 'var(--radius-md)',
-            padding: '3px',
-            marginBottom: '18px'
-          }}>
-            <button
-              onClick={() => setAuthTab('roster')}
-              className={`btn btn-sm ${authTab === 'roster' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ borderRadius: '6px', gap: '6px', fontWeight: 700 }}
-            >
-              <Users size={14} />
-              <span>Team Roster (5 Members + 1 Adviser)</span>
-            </button>
-            <button
-              onClick={() => setAuthTab('github')}
-              className={`btn btn-sm ${authTab === 'github' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ borderRadius: '6px', gap: '6px', fontWeight: 700 }}
-            >
-              <GitHubIcon size={14} />
-              <span>GitHub OAuth</span>
-            </button>
-          </div>
-
           {error && (
-            <div style={{ background: 'var(--danger-bg)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.78rem', marginBottom: '14px' }}>
-              <AlertCircle size={15} />
+            <div style={{ 
+              background: 'var(--danger-bg)', 
+              border: '1px solid rgba(239, 68, 68, 0.3)', 
+              padding: '10px 12px', 
+              borderRadius: 'var(--radius-md)', 
+              display: 'flex', 
+              alignItems: 'flex-start', 
+              gap: '8px', 
+              color: 'var(--danger)', 
+              fontSize: '0.78rem', 
+              marginBottom: '16px' 
+            }}>
+              <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Tab 1: Team Roster Selection */}
-          {authTab === 'roster' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '2px' }}>
-                Select Your Profile to Continue:
-              </div>
+          {/* Dedicated GitHub Login Card */}
+          <div style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            {/* Primary Action Button */}
+            <button
+              onClick={handleOAuthRedirect}
+              disabled={loading}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                padding: '12px 18px',
+                fontSize: '0.9rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-md)'
+              }}
+            >
+              <GitHubIcon size={18} />
+              <span>{loading ? 'Connecting to GitHub...' : 'Continue with GitHub OAuth'}</span>
+              <ArrowRight size={16} />
+            </button>
 
-              {members.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => loginUser(m.id)}
-                  className="stagger-item card"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    cursor: 'pointer',
-                    border: '1px solid var(--border-card)',
-                    background: 'var(--bg-elevated)',
-                    textAlign: 'left',
-                    borderRadius: 'var(--radius-md)',
-                    transition: 'all 160ms var(--ease-out)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <img 
-                      src={m.avatar} 
-                      alt={m.name} 
-                      style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} 
-                    />
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                          {m.name}
-                        </span>
-                        <span className={`badge ${m.permissionLevel === 'owner' ? 'badge-primary' : m.permissionLevel === 'adviser' ? 'badge-info' : 'badge-neutral'}`} style={{ fontSize: '0.55rem', padding: '1px 5px' }}>
-                          {m.permissionLevel === 'owner' ? '👑 Owner' : m.permissionLevel === 'adviser' ? 'Adviser' : 'Member'}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {m.roleTitle}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)' }}>
-                    <span style={{ fontSize: '0.76rem', fontWeight: 700 }}>Enter</span>
-                    <ChevronRight size={15} />
-                  </div>
-                </button>
-              ))}
+            {/* Direct GitHub Username Form */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '2px 0' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>or sign in with handle</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
             </div>
-          )}
 
-          {/* Tab 2: GitHub OAuth Form */}
-          {authTab === 'github' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* 1-Click OAuth Button */}
+            <form onSubmit={handleDirectGitHubLogin} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={githubHandle}
+                onChange={e => setGithubHandle(e.target.value)}
+                placeholder="Your GitHub username (e.g. octocat)"
+                className="input-field"
+                style={{ flex: 1, fontSize: '0.82rem', height: '36px' }}
+              />
               <button
-                onClick={handleOAuthRedirect}
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '12px', gap: '8px', fontSize: '0.88rem' }}
+                type="submit"
+                disabled={handleLoading || !githubHandle.trim()}
+                className="btn btn-secondary"
+                style={{ height: '36px', padding: '0 14px', fontSize: '0.8rem', fontWeight: 700, gap: '6px' }}
               >
-                <GitHubIcon size={18} />
-                <span>Continue with GitHub OAuth 2.0</span>
+                {handleLoading ? 'Fetching...' : 'Sign In'}
               </button>
+            </form>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                  Or Direct Connect
-                </span>
-                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+            {/* Quick Member Selector */}
+            {members.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                  Switch Active Member Profile:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                  {members.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => loginUser(m.id)}
+                      className="btn btn-ghost btn-sm"
+                      style={{
+                        padding: '6px 8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        justifyContent: 'flex-start',
+                        textAlign: 'left',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)'
+                      }}
+                    >
+                      <img 
+                        src={m.avatar || `https://github.com/${m.githubUsername || 'ghost'}.png`} 
+                        alt={m.name} 
+                        style={{ width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover', border: `1.5px solid ${m.color}` }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.name.split(' ')[0]}
+                        </div>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          {m.githubUsername ? `@${m.githubUsername}` : m.role}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
+            )}
+          </div>
 
-              {/* Direct Username Input */}
-              <form onSubmit={handleDirectGitHub} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label className="input-label">GitHub Username / Handle</label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                      @
-                    </span>
-                    <input 
-                      type="text" 
-                      value={githubHandle} 
-                      onChange={(e) => setGithubHandle(e.target.value)} 
-                      placeholder="e.g. your-github-handle" 
-                      className="input-field" 
-                      style={{ paddingLeft: '28px' }}
-                      required 
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="input-label">Personal Access Token (Optional)</label>
-                  <input 
-                    type="password" 
-                    value={githubToken} 
-                    onChange={(e) => setGithubToken(e.target.value)} 
-                    placeholder="ghp_xxxxxxxxxxxx" 
-                    className="input-field" 
-                  />
-                </div>
-
-                <button 
-                  type="submit" 
-                  className="btn btn-secondary" 
-                  disabled={loading}
-                  style={{ width: '100%', padding: '10px', gap: '6px' }}
-                >
-                  <GitHubIcon size={15} />
-                  <span>{loading ? 'Connecting...' : 'Sign in with GitHub Handle'}</span>
-                </button>
-              </form>
-            </div>
-          )}
+          {/* Security & Verification Footer */}
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            <Lock size={12} />
+            <span>Encrypted GitHub single sign-on authentication</span>
+          </div>
         </div>
       </div>
     </div>

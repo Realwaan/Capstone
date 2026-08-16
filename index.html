@@ -1,15 +1,35 @@
 <!doctype html>
-<html lang="en" class="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='18' height='18' x='3' y='3' rx='2'/><path d='m9 12 2 2 4-4'/></svg>" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2330d158' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='18' height='18' x='3' y='3' rx='2'/><path d='m9 12 2 2 4-4'/></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CapStoneFlow | Precision Workflow & Progress Operating System</title>
-    <meta name="description" content="A focused, professional workflow execution and progress intelligence operating system for teams." />
-    <!-- Google Fonts: Space Grotesk (Headings), Plus Jakarta Sans (UI), JetBrains Mono (Metrics) -->
+    <title>CapStoneFlow | Precision Academic Workflow & Progress Intelligence OS</title>
+    <meta name="description" content="Precision workflow execution, academic milestone gates, and progress intelligence for capstone teams." />
+    
+    <!-- Google Fonts: Space Grotesk, Plus Jakarta Sans, JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Zero-Flicker Inline Theme Script (animations.dev pattern) -->
+    <script>
+      !function() {
+        try {
+          var d = document.documentElement;
+          var c = d.classList;
+          c.remove('light', 'dark');
+          var saved = localStorage.getItem('capstoneflow_state_v5_theme');
+          if (saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            d.style.colorScheme = 'dark';
+            c.add('dark');
+          } else {
+            d.style.colorScheme = 'light';
+            c.add('light');
+          }
+        } catch (e) {}
+      }();
+    </script>
   </head>
   <body>
     <div id="root"></div>

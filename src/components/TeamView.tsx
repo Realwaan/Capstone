@@ -1,5 +1,6 @@
 import React from 'react';
 import { useProject } from '../context/ProjectContext';
+import { formatRelativeTime, formatExactTimestamp, useLiveTimeRefresh } from '../utils/time';
 import { 
   Users, 
   Plus, 
@@ -17,13 +18,28 @@ interface TeamViewProps {
 }
 
 export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
-  const { members, tasks, standups, project } = useProject();
+  const { members, tasks, standups, project, addMemberByGitHub, isOwner } = useProject();
+  const [isAddMemberOpen, setIsAddMemberOpen] = React.useState(false);
+  const [newUsername, setNewUsername] = React.useState('');
+  const [newRoleTitle, setNewRoleTitle] = React.useState('Frontend & UI/UX Developer');
+  const [isSubmittingMember, setIsSubmittingMember] = React.useState(false);
+  useLiveTimeRefresh(15000);
 
-  // 5 Student Members
+  // Student Members
   const studentMembers = members.filter(m => m.role !== 'adviser');
   
   // 1 Capstone Adviser
   const adviserMember = members.find(m => m.role === 'adviser');
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUsername.trim()) return;
+    setIsSubmittingMember(true);
+    await addMemberByGitHub(newUsername.trim(), newRoleTitle);
+    setIsSubmittingMember(false);
+    setNewUsername('');
+    setIsAddMemberOpen(false);
+  };
 
   const memberStats = studentMembers.map(member => {
     const memberTasks = tasks.filter(t => t.assigneeId === member.id);
@@ -50,7 +66,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span className="badge badge-primary">5 Student Members</span>
+            <span className="badge badge-primary">{studentMembers.length} Student Members</span>
             <span className="badge badge-info">1 Faculty Adviser</span>
           </div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Team Roster & Workload Transparency</h2>
@@ -59,23 +75,87 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
           </p>
         </div>
 
-        <button onClick={onOpenStandupModal} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
-          <Plus size={15} />
-          <span>Post Daily Standup</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {isOwner && (
+            <button onClick={() => setIsAddMemberOpen(true)} className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
+              <Users size={14} />
+              <span>Add Member (GitHub)</span>
+            </button>
+          )}
+          <button onClick={onOpenStandupModal} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
+            <Plus size={15} />
+            <span>Post Daily Standup</span>
+          </button>
+        </div>
       </div>
 
-      {/* 5 Student Members Grid */}
+      {/* Add Member Modal */}
+      {isAddMemberOpen && (
+        <div className="modal-backdrop" onClick={() => setIsAddMemberOpen(false)} style={{ zIndex: 1200 }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={18} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Add Member by GitHub Handle</h3>
+              </div>
+              <button onClick={() => setIsAddMemberOpen(false)} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}>
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddMember} style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label className="input-label">GitHub Username *</label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={e => setNewUsername(e.target.value)}
+                  placeholder="e.g. octocat"
+                  className="input-field"
+                  required
+                  autoFocus
+                />
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                  Profile picture and display name will be loaded automatically from GitHub.
+                </span>
+              </div>
+
+              <div>
+                <label className="input-label">Role Title in Capstone</label>
+                <input
+                  type="text"
+                  value={newRoleTitle}
+                  onChange={e => setNewRoleTitle(e.target.value)}
+                  placeholder="e.g. Frontend & UI/UX Developer"
+                  className="input-field"
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setIsAddMemberOpen(false)} className="btn btn-ghost">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isSubmittingMember || !newUsername.trim()} className="btn btn-primary">
+                  {isSubmittingMember ? 'Adding...' : 'Add to Team'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Student Members Grid */}
       <div>
         <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>
-          Active Capstone Team Roster (5 Members)
+          Active Capstone Team Roster ({studentMembers.length} Members)
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
           {memberStats.map(({ member, completed, inProgress, loggedHours, completionRate }) => (
             <div key={member.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <img 
-                  src={member.avatar} 
+                  src={member.avatar || `https://github.com/${member.githubUsername || 'ghost'}.png`} 
                   alt={member.name} 
                   style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: `2px solid ${member.color}` }}
                 />
@@ -88,9 +168,16 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                     {member.roleTitle}
                   </div>
-                  <span className={`badge ${member.permissionLevel === 'owner' ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: '0.55rem', padding: '1px 5px', marginTop: '2px' }}>
-                    {member.permissionLevel === 'owner' ? '👑 Owner' : 'Member'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                    <span className={`badge ${member.permissionLevel === 'owner' ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: '0.55rem', padding: '1px 5px' }}>
+                      {member.permissionLevel === 'owner' ? '👑 Owner' : 'Member'}
+                    </span>
+                    {member.githubUsername && (
+                      <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        @{member.githubUsername}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -206,7 +293,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img 
-                      src={author?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
+                      src={author?.avatar || `https://github.com/${author?.githubUsername || 'ghost'}.png`} 
                       alt="" 
                       style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} 
                     />
@@ -220,8 +307,11 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                     </div>
                   </div>
 
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    {entry.date}
+                  <span 
+                    title={formatExactTimestamp(entry.date)}
+                    style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', cursor: 'help' }}
+                  >
+                    {formatRelativeTime(entry.date)}
                   </span>
                 </div>
 

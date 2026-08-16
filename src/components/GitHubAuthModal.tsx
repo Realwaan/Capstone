@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
 import { useProject } from '../context/ProjectContext';
-import { X, Check, ExternalLink, AlertCircle, RefreshCw, Key, ShieldCheck } from 'lucide-react';
+import { 
+  X, 
+  ExternalLink, 
+  AlertCircle, 
+  ShieldCheck, 
+  ArrowRight, 
+  RefreshCw, 
+  Key, 
+  User, 
+  Check, 
+  FolderGit2,
+  Sparkles
+} from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
+import { setGitHubToken, getGitHubToken } from '../lib/github';
+import { toast } from 'sonner';
 
 interface GitHubAuthModalProps {
   isOpen: boolean;
@@ -9,111 +23,169 @@ interface GitHubAuthModalProps {
 }
 
 export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClose }) => {
-  const { githubUser, loginWithGitHub, logoutGitHub, project, setGitHubRepo } = useProject();
+  const { 
+    githubUser, 
+    logoutGitHub, 
+    loginWithGitHub, 
+    project, 
+    setGitHubRepo, 
+    syncGitHubData,
+    members 
+  } = useProject();
 
-  const [username, setUsername] = useState(githubUser?.login || '');
-  const [token, setToken] = useState('');
+  const [authMode, setAuthMode] = useState<'username' | 'oauth'>('username');
+  const [handleInput, setHandleInput] = useState('');
+  const [patToken, setPatToken] = useState(getGitHubToken());
   const [repoUrl, setRepoUrl] = useState(project.githubRepoUrl || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
 
   if (!isOpen) return null;
 
-  const handleOAuthRedirect = () => {
-    if (!clientId) {
-      setError('Please add VITE_GITHUB_CLIENT_ID to your .env file to use 1-Click OAuth redirect.');
-      return;
-    }
-    const redirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI || `${window.location.origin}/auth/callback`;
-    const scope = encodeURIComponent('read:user user:email repo');
-    
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
-
-    window.location.href = authUrl;
-  };
-
-  const handleConnect = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim()) {
-      setError('Please enter your GitHub username or organization handle.');
+  const handleConnectByUsername = async (e?: React.FormEvent, customHandle?: string) => {
+    if (e) e.preventDefault();
+    const targetHandle = (customHandle || handleInput).trim().replace(/^@/, '');
+    if (!targetHandle) {
+      setError('Please enter a GitHub username.');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    const ok = await loginWithGitHub(username, token);
-    setLoading(false);
-
-    if (ok) {
-      if (repoUrl.trim()) {
-        setGitHubRepo(repoUrl.trim());
+    try {
+      if (patToken.trim()) {
+        setGitHubToken(patToken.trim());
       }
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
+
+      const success = await loginWithGitHub(targetHandle, patToken.trim() || undefined);
+      if (success) {
+        toast.success('GitHub Connected', {
+          description: `Logged in as @${targetHandle}`
+        });
+        await syncGitHubData();
         onClose();
-      }, 1200);
-    } else {
-      setError('Could not verify GitHub profile. Please check the username.');
+      } else {
+        setError(`Could not resolve @${targetHandle} on GitHub. Check username spelling.`);
+      }
+    } catch {
+      setError('An error occurred while connecting to GitHub.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleOAuthRedirect = () => {
+    if (!clientId) {
+      setError('Missing VITE_GITHUB_CLIENT_ID in .env file.');
+      return;
+    }
+    const redirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI;
+    const scope = encodeURIComponent('read:user user:email repo');
+    
+    const authUrl = redirectUri 
+      ? `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`
+      : `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${scope}`;
+
+    window.location.href = authUrl;
+  };
+
+  const handleSaveRepo = async () => {
+    if (!repoUrl.trim()) return;
+    setGitHubRepo(repoUrl.trim());
+    await syncGitHubData();
+    toast.success('Repository Linked', {
+      description: `Target repository updated to ${repoUrl.trim()}`
+    });
   };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ 
+          padding: '18px 24px', 
+          borderBottom: '1px solid var(--border-subtle)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          background: 'var(--bg-card)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
               background: '#24292f',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              border: '1px solid var(--border-subtle)'
             }}>
-              <GitHubIcon size={16} />
+              <GitHubIcon size={18} />
             </div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>GitHub Authentication & Sync</h3>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>GitHub Developer Hub</h3>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Connect your account for live commits, PRs, and team telemetry
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}>
+          <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ borderRadius: 'var(--radius-sm)' }}>
             <X size={16} />
           </button>
         </div>
 
         {/* Modal Body */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {error && (
+            <div style={{ 
+              background: 'var(--danger-bg)', 
+              border: '1px solid rgba(255, 69, 58, 0.3)', 
+              padding: '10px 14px', 
+              borderRadius: 'var(--radius-md)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              color: 'var(--danger)', 
+              fontSize: '0.78rem' 
+            }}>
+              <AlertCircle size={15} />
+              <span>{error}</span>
+            </div>
+          )}
+
           {githubUser ? (
-            /* Connected Profile State */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            /* Connected State */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div style={{
-                background: 'var(--bg-card)',
+                background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-card)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
+                borderRadius: 'var(--radius-lg)',
+                padding: '18px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '14px'
+                gap: '14px',
+                boxShadow: 'var(--shadow-sm)'
               }}>
                 <img 
                   src={githubUser.avatar_url} 
                   alt={githubUser.login} 
-                  style={{ width: '48px', height: '48px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}
+                  style={{ width: '48px', height: '48px', borderRadius: '10px', border: '1.5px solid var(--primary)', objectFit: 'cover' }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {githubUser.name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {githubUser.name || githubUser.login}
                     </span>
-                    <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>Connected</span>
+                    <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>
+                      🟢 Connected
+                    </span>
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-accent)', fontFamily: 'var(--font-mono)' }}>
                     @{githubUser.login}
                   </div>
                   {githubUser.bio && (
@@ -124,163 +196,259 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
                 </div>
               </div>
 
-              {/* Linked Repo Config */}
-              <div>
-                <label className="input-label">Linked Repository URL</label>
+              {/* Linked Repo URL */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FolderGit2 size={14} style={{ color: 'var(--primary)' }} />
+                  <span>Linked GitHub Repository</span>
+                </label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input 
-                    type="url" 
+                    type="text" 
                     value={repoUrl} 
                     onChange={(e) => setRepoUrl(e.target.value)} 
-                    placeholder="https://github.com/username/capstone" 
-                    className="input-field" 
+                    placeholder="e.g. Realwaan/capstone-project or https://github.com/..." 
+                    className="input-field"
+                    style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
                   />
                   <button 
-                    onClick={() => {
-                      if (repoUrl.trim()) setGitHubRepo(repoUrl.trim());
-                    }} 
-                    className="btn btn-secondary btn-sm"
+                    type="button"
+                    onClick={handleSaveRepo} 
+                    className="btn btn-primary btn-sm"
+                    style={{ minWidth: '90px' }}
                   >
-                    Save
+                    <span>Save Repo</span>
                   </button>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Accepts <code style={{ fontFamily: 'var(--font-mono)' }}>owner/repo</code>, HTTPS, or SSH Git URLs.
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', marginTop: '4px' }}>
+              {/* Action Buttons */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                borderTop: '1px solid var(--border-subtle)', 
+                paddingTop: '16px' 
+              }}>
                 <a 
                   href={githubUser.html_url} 
                   target="_blank" 
                   rel="noreferrer" 
-                  style={{ fontSize: '0.78rem', color: 'var(--text-accent)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                  style={{ 
+                    fontSize: '0.78rem', 
+                    color: 'var(--text-accent)', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '4px', 
+                    textDecoration: 'none',
+                    fontWeight: 600
+                  }}
                 >
                   <ExternalLink size={13} />
-                  <span>View GitHub Profile</span>
+                  <span>Open GitHub Profile</span>
                 </a>
-                <button 
-                  onClick={() => {
-                    logoutGitHub();
-                    onClose();
-                  }} 
-                  className="btn btn-ghost btn-sm" 
-                  style={{ color: 'var(--danger)' }}
-                >
-                  Disconnect Account
-                </button>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await syncGitHubData();
+                      toast.success('Git Feeds Refreshed');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ gap: '6px' }}
+                  >
+                    <RefreshCw size={13} />
+                    <span>Sync Feeds</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      logoutGitHub();
+                      toast.info('Disconnected from GitHub');
+                    }} 
+                    className="btn btn-ghost btn-sm" 
+                    style={{ color: 'var(--danger)' }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            /* Login Form */
+            /* Unconnected State with Multi-Mode Auth */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Option A: 1-Click OAuth Redirect */}
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid var(--border-card)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px'
+              {/* Tab Selector */}
+              <div style={{ 
+                display: 'flex', 
+                background: 'var(--bg-elevated)', 
+                padding: '3px', 
+                borderRadius: 'var(--radius-md)', 
+                border: '1px solid var(--border-subtle)' 
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
-                  <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Official OAuth 2.0 Authorization
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                  Redirects to GitHub.com to authenticate with your registered OAuth Application (Client ID stored in <code className="mono">.env</code>).
-                </p>
-                <button 
+                <button
                   type="button"
-                  onClick={handleOAuthRedirect}
-                  className="btn btn-primary"
-                  style={{ width: '100%', gap: '8px', padding: '10px 16px', fontWeight: 700 }}
+                  onClick={() => setAuthMode('username')}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    flex: 1,
+                    borderRadius: 'var(--radius-sm)',
+                    background: authMode === 'username' ? 'var(--bg-card)' : 'transparent',
+                    boxShadow: authMode === 'username' ? 'var(--shadow-sm)' : 'none',
+                    fontWeight: authMode === 'username' ? 700 : 500,
+                    color: authMode === 'username' ? 'var(--text-primary)' : 'var(--text-muted)'
+                  }}
                 >
-                  <GitHubIcon size={16} />
-                  <span>Continue with GitHub OAuth</span>
+                  Quick Username / Handle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('oauth')}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    flex: 1,
+                    borderRadius: 'var(--radius-sm)',
+                    background: authMode === 'oauth' ? 'var(--bg-card)' : 'transparent',
+                    boxShadow: authMode === 'oauth' ? 'var(--shadow-sm)' : 'none',
+                    fontWeight: authMode === 'oauth' ? 700 : 500,
+                    color: authMode === 'oauth' ? 'var(--text-primary)' : 'var(--text-muted)'
+                  }}
+                >
+                  OAuth 2.0 Web Flow
                 </button>
               </div>
 
-              {/* Divider */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                  Or Direct Connect
-                </span>
-                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-              </div>
-
-              {/* Option B: Direct Username / PAT form */}
-              <form onSubmit={handleConnect} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {error && (
-                  <div style={{ background: 'var(--danger-bg)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.78rem' }}>
-                    <AlertCircle size={15} />
-                    <span>{error}</span>
+              {authMode === 'username' ? (
+                /* Mode 1: Quick Username & Token */
+                <form onSubmit={(e) => handleConnectByUsername(e)} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Quick Select Team Members */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                      Quick 1-Click Connect Team Handle:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                      {members.filter(m => m.githubUsername).map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleConnectByUsername(undefined, m.githubUsername)}
+                          disabled={loading}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            justifyContent: 'flex-start'
+                          }}
+                        >
+                          <img 
+                            src={m.avatar || `https://github.com/${m.githubUsername}.png`} 
+                            alt={m.name} 
+                            style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                          <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 700, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              @{m.githubUsername}
+                            </div>
+                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                              {m.name.split(' ')[0]}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                )}
 
-                {success && (
-                  <div style={{ background: 'var(--success-bg)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--success)', fontSize: '0.78rem' }}>
-                    <Check size={15} />
-                    <span>GitHub account connected successfully!</span>
-                  </div>
-                )}
-
-                <div>
-                  <label className="input-label">GitHub Username / Handle *</label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-                      @
-                    </span>
+                  {/* Or Custom Username */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Or Enter Custom GitHub Username</label>
                     <input 
-                      type="text" 
-                      value={username} 
-                      onChange={(e) => setUsername(e.target.value)} 
-                      placeholder="e.g. your-github-handle" 
-                      className="input-field" 
-                      style={{ paddingLeft: '28px' }}
-                      required 
+                      type="text"
+                      value={handleInput}
+                      onChange={(e) => setHandleInput(e.target.value)}
+                      placeholder="e.g. Realwaan or Jeremy-hub-prog"
+                      className="input-field"
+                      style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="input-label">Capstone Repository URL (Optional)</label>
-                  <input 
-                    type="url" 
-                    value={repoUrl} 
-                    onChange={(e) => setRepoUrl(e.target.value)} 
-                    placeholder="https://github.com/your-username/capstone" 
-                    className="input-field" 
-                  />
-                </div>
+                  {/* Optional PAT */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Key size={12} />
+                        <span>Personal Access Token (Optional — 5,000 req/hr)</span>
+                      </label>
+                    </div>
+                    <input 
+                      type="password"
+                      value={patToken}
+                      onChange={(e) => setPatToken(e.target.value)}
+                      placeholder="ghp_... (Optional for private repos)"
+                      className="input-field"
+                      style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                    />
+                  </div>
 
-                <div>
-                  <label className="input-label">Personal Access Token (Optional)</label>
-                  <input 
-                    type="password" 
-                    value={token} 
-                    onChange={(e) => setToken(e.target.value)} 
-                    placeholder="ghp_xxxxxxxxxxxx (for private repo access)" 
-                    className="input-field" 
-                  />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
-                  <button type="button" onClick={onClose} className="btn btn-ghost">
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="btn btn-secondary" 
+                  <button
+                    type="submit"
                     disabled={loading}
-                    style={{ gap: '6px' }}
+                    className="btn btn-primary"
+                    style={{ width: '100%', padding: '10px 16px', fontWeight: 800, marginTop: '4px' }}
                   >
-                    {loading ? <RefreshCw size={14} className="animate-spin" /> : <GitHubIcon size={15} />}
-                    <span>{loading ? 'Connecting...' : 'Connect Handle'}</span>
+                    <GitHubIcon size={16} />
+                    <span>{loading ? 'Authenticating with GitHub...' : 'Connect GitHub Profile'}</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </form>
+              ) : (
+                /* Mode 2: OAuth 2.0 Flow */
+                <div style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-card)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Standard OAuth 2.0 Web Flow
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Redirects to GitHub to grant full read access to repositories, branches, and collaborator telemetry.
+                  </p>
+
+                  <div style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '8px 12px',
+                    fontSize: '0.72rem',
+                    color: 'var(--text-muted)'
+                  }}>
+                    Client ID: <code style={{ fontFamily: 'var(--font-mono)' }}>{clientId || 'Not configured in .env'}</code>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={handleOAuthRedirect}
+                    className="btn btn-primary"
+                    style={{ width: '100%', gap: '8px', padding: '12px 16px', fontWeight: 800, marginTop: '4px' }}
+                  >
+                    <GitHubIcon size={16} />
+                    <span>Authenticate via GitHub OAuth</span>
+                    <ArrowRight size={15} />
                   </button>
                 </div>
-              </form>
+              )}
             </div>
           )}
         </div>

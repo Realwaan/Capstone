@@ -1,91 +1,92 @@
 /* ==========================================================================
-   CapStoneFlow Design System: Precision Swiss Studio / Kinetic Utilitarian
-   Aesthetic Stance: High-Craft, Monochromatic Structure with Precision Accents
+   CapStoneFlow Design System: Linear + Raycast Unified Tokens
    ========================================================================== */
+@import '../design-system/tokens.css';
 
 :root {
-  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Apple HIG System Typography Hierarchy */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Space Grotesk", system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
 
-  /* Emil Kowalski Strong Physics Easings */
+  /* Emil Kowalski & Apple HIG Physics Curves */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 
-  /* Theme: Obsidian Carbon (Default) */
+  /* Apple Liquid Glass Dark Material (Default) */
   --bg-app: #080a0f;
-  --bg-sidebar: #0c0f17;
-  --bg-card: rgba(14, 18, 27, 0.85);
-  --bg-card-hover: rgba(22, 28, 42, 0.95);
-  --bg-elevated: #131824;
-  --bg-input: #0b0e16;
-  --bg-glass: rgba(12, 15, 23, 0.85);
+  --bg-sidebar: rgba(14, 18, 26, 0.78);
+  --bg-card: rgba(20, 26, 38, 0.65);
+  --bg-card-hover: rgba(28, 36, 52, 0.82);
+  --bg-elevated: rgba(24, 32, 46, 0.75);
+  --bg-input: rgba(12, 16, 24, 0.85);
+  --bg-glass: rgba(14, 18, 26, 0.8);
 
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-card: rgba(255, 255, 255, 0.1);
-  --border-focus: #10b981;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-card: rgba(255, 255, 255, 0.12);
+  --border-focus: #30d158;
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-accent: #34d399;
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-muted: #6e6e73;
+  --text-accent: #30d158;
 
-  /* Precision Signal Accents (No generic SaaS purple) */
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --primary-light: rgba(16, 185, 129, 0.12);
-  --primary-glow: rgba(16, 185, 129, 0.25);
+  /* Apple Cupertino Vibrant Accents */
+  --primary: #30d158;
+  --primary-hover: #28c34e;
+  --primary-light: rgba(48, 209, 88, 0.14);
+  --primary-glow: rgba(48, 209, 88, 0.28);
 
-  --secondary: #3b82f6;
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.12);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.12);
-  --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.12);
-  --info: #06b6d4;
-  --info-bg: rgba(6, 182, 212, 0.12);
+  --secondary: #0a84ff;
+  --success: #30d158;
+  --success-bg: rgba(48, 209, 88, 0.14);
+  --warning: #ff9f0a;
+  --warning-bg: rgba(255, 159, 10, 0.14);
+  --danger: #ff453a;
+  --danger-bg: rgba(255, 69, 58, 0.14);
+  --info: #64d2ff;
+  --info-bg: rgba(100, 210, 255, 0.14);
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.7);
+  /* Apple Depth & Specular Ambient Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-full: 9999px;
 }
 
-/* Light Theme Variables */
+/* Light Theme Variables (Apple macOS Light Vibrant) */
 html.light {
-  --bg-app: #f4f5f8;
-  --bg-sidebar: #ffffff;
-  --bg-card: rgba(255, 255, 255, 0.95);
-  --bg-card-hover: rgba(248, 250, 252, 1);
-  --bg-elevated: #ffffff;
-  --bg-input: #f8fafc;
-  --bg-glass: rgba(255, 255, 255, 0.9);
+  --bg-app: #f5f5f7;
+  --bg-sidebar: rgba(245, 245, 247, 0.82);
+  --bg-card: rgba(255, 255, 255, 0.78);
+  --bg-card-hover: rgba(255, 255, 255, 0.95);
+  --bg-elevated: rgba(255, 255, 255, 0.9);
+  --bg-input: rgba(255, 255, 255, 0.95);
+  --bg-glass: rgba(245, 245, 247, 0.85);
 
-  --border-subtle: #e2e8f0;
-  --border-card: #d8e0ea;
-  --border-focus: #059669;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-card: rgba(0, 0, 0, 0.12);
+  --border-focus: #34c759;
 
-  --text-primary: #090d16;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --text-accent: #059669;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: #86868b;
+  --text-accent: #34c759;
 
-  --primary: #059669;
-  --primary-hover: #047857;
-  --primary-light: rgba(5, 150, 105, 0.1);
-  --primary-glow: rgba(5, 150, 105, 0.2);
+  --primary: #34c759;
+  --primary-hover: #2db34e;
+  --primary-light: rgba(52, 199, 89, 0.12);
+  --primary-glow: rgba(52, 199, 89, 0.22);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
 /* ==========================================================================
@@ -107,6 +108,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   overflow-x: hidden;
+  overflow-wrap: break-word;
   /* Crisp Hairline Geometric Grid Background */
   background-image: 
     linear-gradient(to right, var(--border-subtle) 1px, transparent 1px),
@@ -136,7 +138,7 @@ body {
 }
 
 /* ==========================================================================
-   Typography Hierarchy
+   Typography Hierarchy (better-typography alignment)
    ========================================================================== */
 
 h1, h2, h3, h4, h5, h6 {
@@ -145,14 +147,39 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.03em;
   color: var(--text-primary);
   line-height: 1.2;
+  text-wrap: balance;
 }
 
-.mono {
+p {
+  text-wrap: pretty;
+  line-height: 1.55;
+}
+
+.measure-readable {
+  max-width: 68ch;
+}
+
+a {
+  text-underline-position: from-font;
+  text-decoration-skip-ink: auto;
+  text-underline-offset: 3px;
+}
+
+.mono, .tabular-nums {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-.gradient-text {
-  color: var(--text-primary);
+::selection {
+  background: rgba(16, 185, 129, 0.3);
+  color: #f8fafc;
+}
+
+/* iOS Safari Input Zoom Prevention Floor (16px on mobile) */
+@media (max-width: 768px) {
+  .input-field, input, select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* ==========================================================================
@@ -301,13 +328,19 @@ h1, h2, h3, h4, h5, h6 {
 .badge-info { background: var(--info-bg); color: var(--info); border-color: rgba(6, 182, 212, 0.25); }
 .badge-neutral { background: rgba(148, 163, 184, 0.08); color: var(--text-secondary); border-color: var(--border-subtle); }
 
-/* Category Tags */
+/* Software Engineering Category Tags */
 .tag-code { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border-color: rgba(59, 130, 246, 0.2); }
+.tag-backend { background: rgba(99, 102, 241, 0.12); color: #818cf8; border-color: rgba(99, 102, 241, 0.2); }
+.tag-frontend { background: rgba(236, 72, 153, 0.12); color: #f472b6; border-color: rgba(236, 72, 153, 0.2); }
+.tag-database { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2); }
+.tag-testing { background: rgba(16, 185, 129, 0.12); color: #34d399; border-color: rgba(16, 185, 129, 0.2); }
+.tag-devops { background: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.2); }
+.tag-architecture { background: rgba(168, 85, 247, 0.12); color: #c084fc; border-color: rgba(168, 85, 247, 0.2); }
+.tag-design { background: rgba(6, 182, 212, 0.12); color: #22d3ee; border-color: rgba(6, 182, 212, 0.2); }
+.tag-docs { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border-color: rgba(148, 163, 184, 0.2); }
 .tag-manuscript { background: rgba(236, 72, 153, 0.12); color: #f472b6; border-color: rgba(236, 72, 153, 0.2); }
 .tag-research { background: rgba(168, 85, 247, 0.12); color: #c084fc; border-color: rgba(168, 85, 247, 0.2); }
-.tag-testing { background: rgba(16, 185, 129, 0.12); color: #34d399; border-color: rgba(16, 185, 129, 0.2); }
 .tag-hardware { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2); }
-.tag-design { background: rgba(6, 182, 212, 0.12); color: #22d3ee; border-color: rgba(6, 182, 212, 0.2); }
 
 /* ==========================================================================
    Structural Cards & Grids
@@ -484,3 +517,379 @@ h1, h2, h3, h4, h5, h6 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Zero-lag theme toggle (animations.dev disableTransitionOnChange) */
+.disable-transitions,
+.disable-transitions * {
+  transition: none !important;
+}
+
+/* ==========================================================================
+   Dropdown & Popover System (Emil Kowalski Origin-Aware Physics)
+   ========================================================================== */
+
+.dropdown-popover {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  transform-origin: top right;
+  animation: dropdownEnter 160ms var(--ease-out);
+}
+
+.dropdown-popover.origin-left {
+  transform-origin: top left;
+}
+
+@keyframes dropdownEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 120ms var(--ease-out);
+}
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+html.light .dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+
+.dropdown-item:active {
+  transform: scale(0.98);
+}
+
+/* ==========================================================================
+   Emil Kowalski Sonner Toast Design Engineering System
+   ========================================================================== */
+
+[data-sonner-toaster] {
+  font-family: var(--font-sans) !important;
+  --normal-bg: rgba(18, 24, 38, 0.95);
+  --normal-border: rgba(255, 255, 255, 0.12);
+  --normal-text: #f5f5f7;
+  --success-bg: rgba(18, 24, 38, 0.95);
+  --success-border: rgba(48, 209, 88, 0.35);
+  --success-text: #f5f5f7;
+  --error-bg: rgba(18, 24, 38, 0.95);
+  --error-border: rgba(255, 69, 58, 0.35);
+  --error-text: #f5f5f7;
+  --info-bg: rgba(18, 24, 38, 0.95);
+  --info-border: rgba(10, 132, 255, 0.35);
+  --info-text: #f5f5f7;
+}
+
+html.light [data-sonner-toaster] {
+  --normal-bg: rgba(255, 255, 255, 0.98);
+  --normal-border: rgba(0, 0, 0, 0.12);
+  --normal-text: #1d1d1f;
+  --success-bg: rgba(255, 255, 255, 0.98);
+  --success-border: rgba(52, 199, 89, 0.4);
+  --success-text: #1d1d1f;
+  --error-bg: rgba(255, 255, 255, 0.98);
+  --error-border: rgba(255, 69, 58, 0.4);
+  --error-text: #1d1d1f;
+  --info-bg: rgba(255, 255, 255, 0.98);
+  --info-border: rgba(10, 132, 255, 0.4);
+  --info-text: #1d1d1f;
+}
+
+[data-sonner-toast] {
+  background: rgba(18, 24, 38, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 12px 16px !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  color: #f5f5f7 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  font-size: 0.84rem !important;
+  min-width: 320px !important;
+  max-width: 440px !important;
+  transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out) !important;
+}
+
+html.light [data-sonner-toast] {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  color: #1d1d1f !important;
+}
+
+[data-sonner-toast][data-type="success"] {
+  border-color: rgba(48, 209, 88, 0.35) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(48, 209, 88, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-sonner-toast][data-type="error"] {
+  border-color: rgba(255, 69, 58, 0.35) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 69, 58, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-sonner-toast][data-type="info"] {
+  border-color: rgba(10, 132, 255, 0.35) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(10, 132, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-sonner-toast] [data-icon] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  color: var(--text-primary) !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em !important;
+}
+
+[data-sonner-toast] [data-description] {
+  font-weight: 400 !important;
+  font-size: 0.76rem !important;
+  color: var(--text-secondary) !important;
+  line-height: 1.3 !important;
+  margin-top: 2px !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 50% !important;
+  width: 20px !important;
+  height: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  top: 12px !important;
+  right: 12px !important;
+  left: auto !important;
+  transform: none !important;
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out) !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ==========================================================================
+   Emil Kowalski Radial 12-Bar Spinner Physics
+   ========================================================================== */
+
+@keyframes emilSpin {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
+.emil-morph-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  overflow: hidden;
+  transition: transform 140ms var(--ease-out), background-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+
+.emil-morph-button:active {
+  transform: scale(0.97);
+}
+
+/* ==========================================================================
+   Emil Kowalski Mobile-First Responsive System & Physics
+   ========================================================================== */
+
+
+/* Breakpoint 1: Tablets & Small Laptops (<= 1024px) */
+@media (max-width: 1024px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 260ms var(--ease-spring) !important;
+    box-shadow: 12px 0 48px rgba(0, 0, 0, 0.6) !important;
+    z-index: 250 !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .main-content {
+    padding-left: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .mobile-hamburger-btn {
+    display: inline-flex !important;
+  }
+
+  .mobile-only {
+    display: inline-flex !important;
+  }
+}
+
+/* Desktop Defaults for Mobile-Only Controls */
+@media (min-width: 1025px) {
+  .mobile-hamburger-btn {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: none !important;
+  }
+
+  .sidebar-mobile-backdrop {
+    display: none !important;
+  }
+}
+
+/* Breakpoint 2: Mobile Devices (<= 768px) */
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: flex !important;
+  }
+
+  .content-body {
+    padding: 12px 14px calc(76px + env(safe-area-inset-bottom, 0px)) 14px !important;
+  }
+
+  .desktop-only-btn {
+    display: none !important;
+  }
+
+  .navbar-btn-label {
+    display: none !important;
+  }
+
+  .navbar-member-name {
+    display: none !important;
+  }
+
+  .kbd-shortcut-pill {
+    display: none !important;
+  }
+
+  .ticker-seconds {
+    display: none !important;
+  }
+
+  .ticker-label {
+    display: none !important;
+  }
+
+  .navbar-header {
+    padding: 8px 12px !important;
+  }
+
+  /* Grid auto-collapse on mobile */
+  .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .grid-cols-3 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Touch ergonomics */
+  button, a, input, select, textarea, .btn, .dropdown-item {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Touch-friendly inputs: prevent iOS automatic zoom */
+  input, select, textarea, .input-field {
+    font-size: 16px !important;
+  }
+
+  /* Mobile floating ticket adjust */
+  .feedback-floating-ticket {
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 14px !important;
+  }
+}
+
+/* Breakpoint 3: Small Mobile Devices & Bottom Sheet Modals (<= 640px) */
+@media (max-width: 640px) {
+  .modal-backdrop:not(.mobile-more-backdrop) {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    border-bottom: none !important;
+    max-height: 88vh !important;
+    max-height: 88dvh !important;
+    animation: mobileSheetSlideUp 260ms var(--ease-spring) !important;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  @keyframes mobileSheetSlideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  /* Mobile Bottom Sheet Drag Handle Bar */
+  .modal-content::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.22);
+    margin: 8px auto 4px auto;
+  }
+
+  html.light .modal-content::before {
+    background: rgba(0, 0, 0, 0.18);
+  }
+}
+
