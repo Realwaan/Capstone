@@ -1,10 +1,14 @@
 import { GitHubCommit, GitHubPullRequest } from '../types';
 
+export const DEFAULT_GITHUB_REPO_URL = 'https://github.com/Realwaan/USCCE';
+export const DEFAULT_GITHUB_OWNER = 'Realwaan';
+export const DEFAULT_GITHUB_REPO = 'USCCE';
+
 const GITHUB_TOKEN_KEY = 'capstoneflow_github_token';
 
 export const getGitHubToken = (): string => {
-  const envToken = import.meta.env.VITE_GITHUB_TOKEN;
-  if (typeof envToken === 'string' && envToken.trim() !== '' && !envToken.includes('placeholder')) {
+  const envToken = import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_PAT;
+  if (typeof envToken === 'string' && envToken.trim() !== '' && !envToken.includes('placeholder') && !envToken.includes('your-github')) {
     return envToken.trim();
   }
   const stored = localStorage.getItem(GITHUB_TOKEN_KEY);
@@ -25,7 +29,9 @@ export interface ParsedRepo {
 }
 
 export const parseGitHubRepoUrl = (url?: string): ParsedRepo | null => {
-  if (!url || !url.trim()) return null;
+  if (!url || !url.trim()) {
+    return { owner: DEFAULT_GITHUB_OWNER, repo: DEFAULT_GITHUB_REPO };
+  }
   const clean = url.trim().replace(/\.git$/, '');
 
   // Handle "owner/repo"
@@ -46,7 +52,7 @@ export const parseGitHubRepoUrl = (url?: string): ParsedRepo | null => {
     return { owner: sshMatch[1], repo: sshMatch[2] };
   }
 
-  return null;
+  return { owner: DEFAULT_GITHUB_OWNER, repo: DEFAULT_GITHUB_REPO };
 };
 
 const getHeaders = (): HeadersInit => {

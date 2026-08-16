@@ -14,7 +14,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
-import { setGitHubToken, getGitHubToken } from '../lib/github';
+import { setGitHubToken, getGitHubToken, DEFAULT_GITHUB_REPO_URL } from '../lib/github';
 import { toast } from 'sonner';
 
 interface GitHubAuthModalProps {
@@ -36,7 +36,7 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
   const [authMode, setAuthMode] = useState<'username' | 'oauth'>('username');
   const [handleInput, setHandleInput] = useState('');
   const [patToken, setPatToken] = useState(getGitHubToken());
-  const [repoUrl, setRepoUrl] = useState(project.githubRepoUrl || '');
+  const [repoUrl, setRepoUrl] = useState(project.githubRepoUrl || DEFAULT_GITHUB_REPO_URL);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

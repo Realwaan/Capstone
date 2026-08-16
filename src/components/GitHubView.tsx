@@ -29,7 +29,7 @@ import { GitHubCommit, GitHubPullRequest } from '../types';
 import { CommitDetailsModal } from './CommitDetailsModal';
 import { formatRelativeTime } from '../utils/time';
 import { toast } from 'sonner';
-import { getGitHubToken, setGitHubToken, parseGitHubRepoUrl } from '../lib/github';
+import { getGitHubToken, setGitHubToken, parseGitHubRepoUrl, DEFAULT_GITHUB_REPO_URL } from '../lib/github';
 
 interface GitHubViewProps {
   onOpenGitHubAuth: () => void;
@@ -57,7 +57,7 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
   const [isTokenDrawerOpen, setIsTokenDrawerOpen] = useState(false);
   const [patInput, setPatInput] = useState(getGitHubToken());
   const [customRepoUrl, setCustomRepoUrl] = useState(
-    project.githubRepoUrl || (githubUser ? `https://github.com/${githubUser.login}/capstone-project` : 'https://github.com/Realwaan/capstone-project')
+    project.githubRepoUrl || DEFAULT_GITHUB_REPO_URL
   );
 
   useEffect(() => {

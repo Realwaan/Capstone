@@ -45,7 +45,7 @@ import {
   syncRevisionToSupabase,
   deleteRevisionFromSupabase
 } from '../lib/supabaseSync';
-import { parseGitHubRepoUrl, syncRepositoryData } from '../lib/github';
+import { parseGitHubRepoUrl, syncRepositoryData, DEFAULT_GITHUB_REPO_URL } from '../lib/github';
 import { 
   notifyDiscordTaskClaimed, 
   notifyDiscordTaskResolved, 
@@ -857,7 +857,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const syncGitHubData = async (targetUrl?: string): Promise<boolean> => {
-    const repoTarget = targetUrl || project.githubRepoUrl || (githubUser ? `${githubUser.login}/capstone-project` : 'Realwaan/capstone-project');
+    const repoTarget = targetUrl || project.githubRepoUrl || DEFAULT_GITHUB_REPO_URL;
     const parsed = parseGitHubRepoUrl(repoTarget);
     if (!parsed) {
       toast.error('Invalid Repository Target', {

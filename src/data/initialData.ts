@@ -9,6 +9,7 @@ export const initialProject: CapstoneProject = {
   currentPhaseId: 1,
   overallProgress: 0,
   teamName: 'Capstone Team',
+  githubRepoUrl: 'https://github.com/Realwaan/USCCE',
   adviser: {
     name: 'Jay Vince Serato',
     email: 'jayvince.serato@university.edu',
