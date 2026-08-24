@@ -64,12 +64,7 @@ export const FeedbackTicket: React.FC = () => {
   return (
     <div 
       ref={containerRef}
-      style={{
-        position: 'fixed',
-        bottom: '24px',
-        right: '24px',
-        zIndex: 1000
-      }}
+      className="feedback-ticket-container"
     >
       {!isOpen ? (
         <button

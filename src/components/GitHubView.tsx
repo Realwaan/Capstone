@@ -22,7 +22,11 @@ import {
   Key,
   Lock,
   Unlock,
-  AlertCircle
+  AlertCircle,
+  Radio,
+  Pause,
+  Play,
+  Activity
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 import { GitHubCommit, GitHubPullRequest } from '../types';
@@ -44,12 +48,21 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
     githubPRs,
     syncGitHubData, 
     isGitHubConnected,
+    isAutoTracking,
+    isSyncingGitHub,
+    lastGitHubSyncTime,
+    toggleAutoTracking,
     tasks,
     members,
+    currentMember,
     updateProjectInfo
   } = useProject();
 
-  const [isSyncing, setIsSyncing] = useState(false);
+  // ── Role guard: only 'owner' (Leader / PM) can configure the workspace repo ──
+  const isOwner = currentMember?.permissionLevel === 'owner';
+
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const isSyncing = isSyncingGitHub || isManualSyncing;
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<GitHubCommit | null>(null);
   const [activeTab, setActiveTab] = useState<'commits' | 'prs' | 'contributors'>('commits');
@@ -67,9 +80,9 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
   }, []);
 
   const handleSync = async () => {
-    setIsSyncing(true);
+    setIsManualSyncing(true);
     await syncGitHubData(customRepoUrl.trim());
-    setIsSyncing(false);
+    setIsManualSyncing(false);
   };
 
   const handleCopy = (text: string, id: string, e?: React.MouseEvent) => {
@@ -85,9 +98,9 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
     const clean = customRepoUrl.trim();
     updateProjectInfo({ githubRepoUrl: clean });
     setIsEditingRepo(false);
-    setIsSyncing(true);
+    setIsManualSyncing(true);
     await syncGitHubData(clean);
-    setIsSyncing(false);
+    setIsManualSyncing(false);
   };
 
   const handleSaveToken = async () => {
@@ -95,9 +108,9 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
     toast.success('GitHub Token Saved', {
       description: patInput.trim() ? 'Private repo access & 5,000 req/hr rate limit enabled' : 'Switched to unauthenticated public mode (60 req/hr)'
     });
-    setIsSyncing(true);
+    setIsManualSyncing(true);
     await syncGitHubData(customRepoUrl.trim());
-    setIsSyncing(false);
+    setIsManualSyncing(false);
   };
 
   const repoUrl = project.githubRepoUrl || customRepoUrl;
@@ -136,46 +149,147 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 800 }}>GitHub Developer Hub</h2>
-            <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>REST API v3 Live Sync</span>
+            
+            {/* Live Auto-Tracking Telemetry Chip */}
+            <div 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                background: isAutoTracking ? 'rgba(48, 209, 88, 0.10)' : 'rgba(255, 255, 255, 0.04)',
+                border: `1px solid ${isAutoTracking ? 'rgba(48, 209, 88, 0.28)' : 'rgba(255, 255, 255, 0.08)'}`,
+                fontSize: '0.62rem',
+                fontFamily: 'var(--font-mono)'
+              }}
+            >
+              {isAutoTracking ? (
+                <>
+                  <span 
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: '#30d158',
+                      boxShadow: '0 0 6px #30d158'
+                    }} 
+                  />
+                  <span style={{ color: '#30d158', fontWeight: 700, letterSpacing: '0.04em' }}>
+                    {isSyncingGitHub ? 'AUTO-SYNCING...' : 'LIVE AUTO-TRACK (25s)'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleAutoTracking(false)}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      padding: '0 2px', 
+                      cursor: 'pointer', 
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Pause automatic background syncing"
+                  >
+                    <Pause size={9} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span 
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--text-muted)'
+                    }} 
+                  />
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                    AUTO-TRACK PAUSED
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleAutoTracking(true)}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      padding: '0 2px', 
+                      cursor: 'pointer', 
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Resume automatic background syncing"
+                  >
+                    <Play size={9} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {lastGitHubSyncTime && (
+              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                • Synced {formatRelativeTime(lastGitHubSyncTime.toISOString())}
+              </span>
+            )}
           </div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Real-time code commit logs, pull request lifecycle, contributor telemetry, and terminal tooling
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Real-time code commit logs, pull request lifecycle, contributor telemetry, and automated deployment sync
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button 
-            type="button"
-            onClick={() => setIsTokenDrawerOpen(prev => !prev)}
-            className={`btn ${hasToken ? 'btn-secondary' : 'btn-ghost'} btn-sm`}
-            style={{ gap: '6px' }}
-            title="Configure Personal Access Token for Private Repositories"
-          >
-            <Key size={13} style={{ color: hasToken ? 'var(--primary)' : 'var(--text-muted)' }} />
-            <span>{hasToken ? 'PAT Active (5,000/hr)' : 'Add PAT Token'}</span>
-          </button>
+          {/* Only Project Leader / PM can manage PAT */}
+          {isOwner ? (
+            <button 
+              type="button"
+              onClick={() => setIsTokenDrawerOpen(prev => !prev)}
+              className={`btn ${hasToken ? 'btn-secondary' : 'btn-ghost'} btn-sm`}
+              style={{ gap: '6px' }}
+              title="Configure Personal Access Token for Private Repositories"
+            >
+              <Key size={13} style={{ color: hasToken ? 'var(--primary)' : 'var(--text-muted)' }} />
+              <span>{hasToken ? 'PAT Active (5,000/hr)' : 'Add PAT Token'}</span>
+            </button>
+          ) : (
+            <span style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              fontSize: '0.7rem', fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              padding: '3px 9px', borderRadius: 'var(--radius-full)',
+            }}>
+              <Lock size={10} style={{ color: 'var(--text-muted)' }} />
+              Repo set by Project Leader
+            </span>
+          )}
 
           <button 
             onClick={handleSync} 
             className="btn btn-secondary btn-sm"
             style={{ gap: '5px' }}
             disabled={isSyncing}
-            title="Fetch latest remote commits and PR updates from GitHub"
+            title="Fetch latest remote commits and PR updates from GitHub immediately"
           >
             <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
             <span>{isSyncing ? 'Syncing...' : 'Sync Git Activity'}</span>
           </button>
 
-          <button 
-            onClick={onOpenGitHubAuth} 
-            className="btn btn-primary btn-sm"
-            style={{ gap: '5px' }}
-          >
-            <GitHubIcon size={14} />
-            <span>{isGitHubConnected ? `@${githubUser?.login}` : 'Login with GitHub'}</span>
-          </button>
+          {/* Only owner can bind/change the GitHub account */}
+          {isOwner && (
+            <button 
+              onClick={onOpenGitHubAuth} 
+              className="btn btn-primary btn-sm"
+              style={{ gap: '5px' }}
+            >
+              <GitHubIcon size={14} />
+              <span>{isGitHubConnected ? `@${githubUser?.login}` : 'Login with GitHub'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -282,53 +396,84 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
                 </span>
               )}
             </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              Target Repository: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{repoUrl}</strong>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              {!isOwner && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  fontSize: '0.63rem', fontFamily: 'var(--font-mono)', fontWeight: 700,
+                  color: 'var(--primary)', letterSpacing: '0.05em',
+                  background: 'var(--primary-light)',
+                  border: '1px solid rgba(48,209,88,0.25)',
+                  padding: '1px 7px', borderRadius: 'var(--radius-full)',
+                }}>
+                  <Lock size={9} />
+                  WORKSPACE REPO
+                </span>
+              )}
+              <span>
+                {isOwner ? 'Target Repository:' : 'Set by Project Leader —'}
+              </span>
+              <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{repoUrl}</strong>
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {isEditingRepo ? (
-            <form onSubmit={handleSaveRepoUrl} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <input 
-                type="text" 
-                value={customRepoUrl}
-                onChange={e => setCustomRepoUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
-                className="input-field input-sm"
-                style={{ width: '280px', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}
-                autoFocus
-              />
-              <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '4px 10px', fontSize: '0.74rem' }}>
-                Save & Sync
-              </button>
-              <button type="button" onClick={() => setIsEditingRepo(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px 8px', fontSize: '0.74rem' }}>
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <>
-              <button 
-                onClick={() => setIsEditingRepo(true)}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '0.74rem', height: '30px' }}
-                title="Edit Target Repository URL"
-              >
-                <span>Edit Repo URL</span>
-              </button>
+          {/* Owner: full edit controls. Members: read-only open link */}
+          {isOwner ? (
+            isEditingRepo ? (
+              <form onSubmit={handleSaveRepoUrl} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input 
+                  type="text" 
+                  value={customRepoUrl}
+                  onChange={e => setCustomRepoUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repo"
+                  className="input-field input-sm"
+                  style={{ width: '280px', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}
+                  autoFocus
+                />
+                <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '4px 10px', fontSize: '0.74rem' }}>
+                  Save & Sync
+                </button>
+                <button type="button" onClick={() => setIsEditingRepo(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px 8px', fontSize: '0.74rem' }}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setIsEditingRepo(true)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.74rem', height: '30px' }}
+                  title="Edit Target Repository URL — Leader / PM only"
+                >
+                  <span>Edit Repo URL</span>
+                </button>
 
-              <a 
-                href={repoUrl.startsWith('http') ? repoUrl : `https://github.com/${repoUrl}`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-primary btn-sm"
-                style={{ gap: '5px', height: '30px', fontSize: '0.74rem' }}
-              >
-                <span>Open Repository</span>
-                <ExternalLink size={13} />
-              </a>
-            </>
+                <a 
+                  href={repoUrl.startsWith('http') ? repoUrl : `https://github.com/${repoUrl}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-primary btn-sm"
+                  style={{ gap: '5px', height: '30px', fontSize: '0.74rem' }}
+                >
+                  <span>Open Repository</span>
+                  <ExternalLink size={13} />
+                </a>
+              </>
+            )
+          ) : (
+            /* Non-owner: just an open link, no edit button */
+            <a 
+              href={repoUrl.startsWith('http') ? repoUrl : `https://github.com/${repoUrl}`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary btn-sm"
+              style={{ gap: '5px', height: '30px', fontSize: '0.74rem' }}
+            >
+              <span>Open Repository</span>
+              <ExternalLink size={13} />
+            </a>
           )}
         </div>
       </div>
@@ -488,7 +633,13 @@ export const GitHubView: React.FC<GitHubViewProps> = ({ onOpenGitHubAuth, onSele
             {githubCommits.map(commit => {
               const additions = commit.stats?.additions || 0;
               const deletions = commit.stats?.deletions || 0;
-              const linked = commit.linkedTaskId ? tasks.find(t => t.id === commit.linkedTaskId) : null;
+              const linked = commit.linkedTaskId 
+                ? tasks.find(t => t.id === commit.linkedTaskId) 
+                : tasks.find(t => {
+                    const msg = `${commit.message} ${commit.description || ''}`.toLowerCase();
+                    const tid = t.id.toLowerCase();
+                    return msg.includes(`#${tid}`) || msg.includes(`[${tid}]`) || (tid.length > 2 && msg.includes(tid));
+                  });
 
               return (
                 <div 

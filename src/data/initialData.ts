@@ -2,62 +2,77 @@ import { CapstoneProject, TeamMember, Task, MilestonePhase, ManuscriptChapter, R
 
 export const initialProject: CapstoneProject = {
   id: 'capstone-proj-001',
-  title: 'My Capstone Project',
-  subtitle: 'A collaborative workflow, milestone, and progress tracking workspace for our capstone team.',
-  targetDefenseDate: '2026-11-30',
-  proposalDefenseDate: '',
+  title: import.meta.env.VITE_PROJECT_TITLE || 'Capstone Flow',
+  subtitle: import.meta.env.VITE_PROJECT_SUBTITLE || 'Collaborative software engineering & capstone implementation workspace.',
+  organization: 'College of Computer Studies',
+  status: 'active',
+  accessLevel: 'private',
+  createdById: 'usr_owner_main',
+  createdByName: 'Project Manager',
+  trackType: 'full_coding',
+  hasManuscript: false,
+  inviteCode: 'CF-ALPHA1',
+  userRole: 'owner',
+  isOwner: true,
+  memberCount: 2,
+  collaborators: [
+    {
+      id: 'usr_owner_main',
+      name: 'Project Manager',
+      avatar: 'https://ui-avatars.com/api/?name=Project+Manager&background=10b981&color=fff&bold=true',
+      role: 'Project Manager / Lead Architect',
+      permission: 'owner'
+    },
+    {
+      id: 'm_adviser',
+      name: import.meta.env.VITE_ADVISER_NAME || 'Faculty Adviser',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(import.meta.env.VITE_ADVISER_NAME || 'Faculty Adviser')}&background=6366f1&color=fff&bold=true`,
+      role: 'Capstone Faculty Adviser',
+      permission: 'adviser'
+    }
+  ],
+  targetDefenseDate: import.meta.env.VITE_TARGET_DEFENSE_DATE || '2026-11-30',
+  proposalDefenseDate: import.meta.env.VITE_PROPOSAL_DEFENSE_DATE || '',
   currentPhaseId: 1,
   overallProgress: 0,
-  teamName: 'Capstone Team',
-  githubRepoUrl: 'https://github.com/Realwaan/USCCE',
+  teamName: import.meta.env.VITE_TEAM_NAME || 'Capstone Dev Team',
+  githubRepoUrl: import.meta.env.VITE_GITHUB_REPO_URL || '',
   adviser: {
-    name: 'Jay Vince Serato',
-    email: 'jayvince.serato@university.edu',
-    department: 'Department of Computer Science / Information Technology',
+    name: import.meta.env.VITE_ADVISER_NAME || 'Faculty Adviser',
+    email: import.meta.env.VITE_ADVISER_EMAIL || 'adviser@university.edu',
+    department: import.meta.env.VITE_ADVISER_DEPARTMENT || 'Department of Computer Science & Information Technology',
   },
   panelMembers: [
-    'Panel Chair / Specialist',
-    'Technical / Industry Panelist',
-    'Ethics & Evaluation Panelist'
+    'Panel Chair / Lead Evaluator',
+    'Technical / Industry Specialist',
+    'Ethics & Methodology Evaluator'
   ]
 };
 
 export const initialMembers: TeamMember[] = [
   {
-    id: 'm1',
-    name: 'Marc Andrei Regulacion',
-    email: 'marcandrei.regulacion@cit.edu',
+    id: 'usr_owner_main',
+    name: 'Project Manager',
+    email: 'manager@capstoneflow.app',
     role: 'leader',
-    roleTitle: 'Project Lead & Architect',
+    roleTitle: 'Project Manager / Lead Architect',
     permissionLevel: 'owner',
-    avatar: 'https://github.com/Realwaan.png',
-    color: '#6366f1',
-    githubUsername: 'Realwaan'
+    avatar: 'https://ui-avatars.com/api/?name=Project+Manager&background=10b981&color=fff&bold=true',
+    color: '#10b981'
   },
   {
-    id: 'm2',
-    name: 'Jeremy Navarro',
-    email: 'jeremy.navarro@student.edu',
-    role: 'developer',
-    roleTitle: 'Backend & Database Engineer',
-    permissionLevel: 'member',
-    avatar: 'https://github.com/Jeremy-hub-prog.png',
-    color: '#10b981',
-    githubUsername: 'Jeremy-hub-prog'
-  },
-  {
-    id: 'm6',
-    name: 'Jay Vince Serato',
-    email: 'jayvince.serato@university.edu',
+    id: 'm_adviser',
+    name: import.meta.env.VITE_ADVISER_NAME || 'Faculty Adviser',
+    email: import.meta.env.VITE_ADVISER_EMAIL || 'adviser@university.edu',
     role: 'adviser',
     roleTitle: 'Capstone Faculty Adviser',
     permissionLevel: 'adviser',
-    avatar: 'https://ui-avatars.com/api/?name=Jay+Vince+Serato&background=6366f1&color=fff&bold=true',
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(import.meta.env.VITE_ADVISER_NAME || 'Faculty Adviser')}&background=6366f1&color=fff&bold=true`,
     color: '#8b5cf6'
   }
 ];
 
-export const initialTasks: Task[] = [
+export const templateCapstoneTickets: Task[] = [
   {
     id: 't1',
     title: 'Architect Relational Database & Entity Relationship Schema (PostgreSQL + Prisma)',
@@ -70,9 +85,9 @@ export const initialTasks: Task[] = [
       'Write database migration seeder script for PostgreSQL'
     ],
     acceptanceCriteria: [
-      { id: 'ac1', text: 'Database normalized to 3NF with zero redundant columns', completed: true },
-      { id: 'ac2', text: 'ERD diagram exported in SVG and included in technical docs', completed: true },
-      { id: 'ac3', text: 'Prisma migration seeder script boots clean test database', completed: true }
+      { id: 'ac1', text: 'Database normalized to 3NF with zero redundant columns', completed: false },
+      { id: 'ac2', text: 'ERD diagram exported in SVG and included in technical docs', completed: false },
+      { id: 'ac3', text: 'Prisma migration seeder script boots clean test database', completed: false }
     ],
     relatedFiles: [
       'src/types/index.ts',
@@ -80,21 +95,19 @@ export const initialTasks: Task[] = [
       'docs/erd_diagram.mermaid'
     ],
     folder: 'database-architecture',
-    createdByUsername: '@leader',
-    claimedByUsername: '@Jeremy-hub-prog',
-    claimedAt: '2026-08-12T06:30:00.000Z',
+    createdByUsername: '@lead',
     category: 'database',
     priority: 'urgent',
-    status: 'in_progress',
-    assigneeId: 'm2',
+    status: 'todo',
+    assigneeId: '',
     phaseId: 2,
     storyPoints: 5,
     estimatedHours: 18,
-    loggedHours: 10,
+    loggedHours: 0,
     dueDate: '2026-09-20',
     subtasks: [
-      { id: 'st1', title: 'Draft conceptual ERD in Mermaid/DBML', completed: true },
-      { id: 'st2', title: 'Implement foreign keys and constraints in schema.prisma', completed: true },
+      { id: 'st1', title: 'Draft conceptual ERD in Mermaid/DBML', completed: false },
+      { id: 'st2', title: 'Implement foreign keys and constraints in schema.prisma', completed: false },
       { id: 'st3', title: 'Write Prisma migration seeders and test datasets', completed: false }
     ],
     createdAt: '2026-08-12',
@@ -112,9 +125,9 @@ export const initialTasks: Task[] = [
       'Write middleware to protect private API routes'
     ],
     acceptanceCriteria: [
-      { id: 'ac4', text: 'GitHub login popup completes with authentic token exchange', completed: true },
-      { id: 'ac5', text: 'User avatar and GitHub handle display in sidebar', completed: true },
-      { id: 'ac6', text: 'Session persistence survives page reloads without logout', completed: true }
+      { id: 'ac4', text: 'GitHub login popup completes with authentic token exchange', completed: false },
+      { id: 'ac5', text: 'User avatar and GitHub handle display in sidebar', completed: false },
+      { id: 'ac6', text: 'Session persistence survives page reloads without logout', completed: false }
     ],
     relatedFiles: [
       'src/components/GitHubAuthModal.tsx',
@@ -122,22 +135,20 @@ export const initialTasks: Task[] = [
       'src/components/LoginPage.tsx'
     ],
     folder: 'auth-security',
-    createdByUsername: '@leader',
-    claimedByUsername: '@qa_lead',
-    claimedAt: '2026-08-13T02:15:00.000Z',
+    createdByUsername: '@lead',
     category: 'backend',
     priority: 'high',
-    status: 'done',
-    assigneeId: 'm4',
+    status: 'todo',
+    assigneeId: '',
     phaseId: 2,
     storyPoints: 5,
     estimatedHours: 16,
-    loggedHours: 16,
+    loggedHours: 0,
     dueDate: '2026-09-18',
     subtasks: [
-      { id: 'st4', title: 'Register GitHub OAuth application with callback URLs', completed: true },
-      { id: 'st5', title: 'Implement token exchange service with secure state validation', completed: true },
-      { id: 'st6', title: 'Store user profile and token in local auth storage', completed: true }
+      { id: 'st4', title: 'Register GitHub OAuth application with callback URLs', completed: false },
+      { id: 'st5', title: 'Implement token exchange service with secure state validation', completed: false },
+      { id: 'st6', title: 'Store user profile and token in local auth storage', completed: false }
     ],
     createdAt: '2026-08-13',
     updatedAt: '2026-08-15'
@@ -154,9 +165,9 @@ export const initialTasks: Task[] = [
       'Ensure zero-FOUC theme switching between dark and light modes'
     ],
     acceptanceCriteria: [
-      { id: 'ac7', text: 'All UI components pass WCAG AA contrast ratios', completed: true },
-      { id: 'ac8', text: 'Design token variables in tokens.css power all components', completed: true },
-      { id: 'ac9', text: 'Interactive buttons use cubic-bezier(0.23, 1, 0.32, 1) spring physics', completed: true }
+      { id: 'ac7', text: 'All UI components pass WCAG AA contrast ratios', completed: false },
+      { id: 'ac8', text: 'Design token variables in tokens.css power all components', completed: false },
+      { id: 'ac9', text: 'Interactive buttons use cubic-bezier(0.23, 1, 0.32, 1) spring physics', completed: false }
     ],
     relatedFiles: [
       'design-system/tokens.json',
@@ -166,22 +177,20 @@ export const initialTasks: Task[] = [
       'src/index.css'
     ],
     folder: 'frontend-design',
-    createdByUsername: '@leader',
-    claimedByUsername: '@dev_ui',
-    claimedAt: '2026-08-12T08:45:00.000Z',
+    createdByUsername: '@lead',
     category: 'frontend',
     priority: 'medium',
-    status: 'peer_review',
-    assigneeId: 'm3',
+    status: 'todo',
+    assigneeId: '',
     phaseId: 3,
     storyPoints: 3,
     estimatedHours: 15,
-    loggedHours: 14,
+    loggedHours: 0,
     dueDate: '2026-09-22',
     subtasks: [
-      { id: 'st7', title: 'Define color tokens, typography, and dark mode palette', completed: true },
-      { id: 'st8', title: 'Build student dashboard and Kanban board components', completed: true },
-      { id: 'st9', title: 'Implement origin-aware popover and morph button physics', completed: true },
+      { id: 'st7', title: 'Define color tokens, typography, and dark mode palette', completed: false },
+      { id: 'st8', title: 'Build student dashboard and Kanban board components', completed: false },
+      { id: 'st9', title: 'Implement origin-aware popover and morph button physics', completed: false },
       { id: 'st10', title: 'Verify zero-lag theme toggle across all views', completed: false }
     ],
     createdAt: '2026-08-12',
@@ -198,8 +207,8 @@ export const initialTasks: Task[] = [
       'Broadcast Discord bot embeds to active client sessions in real-time'
     ],
     acceptanceCriteria: [
-      { id: 'ac10', text: 'Ticket claim events instantly update all active browser sessions', completed: true },
-      { id: 'ac11', text: 'Relative timestamps update dynamically without full page reload', completed: true }
+      { id: 'ac10', text: 'Ticket claim events instantly update all active browser sessions', completed: false },
+      { id: 'ac11', text: 'Relative timestamps update dynamically without full page reload', completed: false }
     ],
     relatedFiles: [
       'src/utils/time.ts',
@@ -207,7 +216,7 @@ export const initialTasks: Task[] = [
       'src/components/TeamView.tsx'
     ],
     folder: 'realtime-services',
-    createdByUsername: '@leader',
+    createdByUsername: '@lead',
     category: 'backend',
     priority: 'high',
     status: 'todo',
@@ -235,9 +244,9 @@ export const initialTasks: Task[] = [
       'Render formatted Discord bot audit embeds inside ticket modals'
     ],
     acceptanceCriteria: [
-      { id: 'ac12', text: 'All 5 slash commands execute with tactile Emil Kowalski morph buttons', completed: true },
-      { id: 'ac13', text: 'Role-based access matrix prevents unauthorized approvals', completed: true },
-      { id: 'ac14', text: 'Inline PR drawer expands smoothly for /resolved with auto-focus', completed: true }
+      { id: 'ac12', text: 'All 5 slash commands execute with tactile Emil Kowalski morph buttons', completed: false },
+      { id: 'ac13', text: 'Role-based access matrix prevents unauthorized approvals', completed: false },
+      { id: 'ac14', text: 'Inline PR drawer expands smoothly for /resolved with auto-focus', completed: false }
     ],
     relatedFiles: [
       'src/components/TaskTicketModal.tsx',
@@ -245,22 +254,20 @@ export const initialTasks: Task[] = [
       'src/context/ProjectContext.tsx'
     ],
     folder: 'discord-integration',
-    createdByUsername: '@leader',
-    claimedByUsername: '@leader',
-    claimedAt: '2026-08-14T07:00:00.000Z',
+    createdByUsername: '@lead',
     category: 'feature',
     priority: 'urgent',
-    status: 'done',
-    assigneeId: 'm1',
+    status: 'todo',
+    assigneeId: '',
     phaseId: 3,
     storyPoints: 5,
     estimatedHours: 14,
-    loggedHours: 14,
+    loggedHours: 0,
     dueDate: '2026-09-15',
     subtasks: [
-      { id: 'st13', title: 'Implement 5-action tactile button bar', completed: true },
-      { id: 'st14', title: 'Build Roles & Permissions matrix modal', completed: true },
-      { id: 'st15', title: 'Create ticket event audit trail reducer', completed: true }
+      { id: 'st13', title: 'Implement 5-action tactile button bar', completed: false },
+      { id: 'st14', title: 'Build Roles & Permissions matrix modal', completed: false },
+      { id: 'st15', title: 'Create ticket event audit trail reducer', completed: false }
     ],
     createdAt: '2026-08-14',
     updatedAt: '2026-08-15'
@@ -283,7 +290,7 @@ export const initialTasks: Task[] = [
       '.github/workflows/ci.yml'
     ],
     folder: 'ci-cd-quality',
-    createdByUsername: '@leader',
+    createdByUsername: '@lead',
     category: 'testing',
     priority: 'medium',
     status: 'backlog',
@@ -320,7 +327,7 @@ export const initialTasks: Task[] = [
       '.dockerignore'
     ],
     folder: 'devops-infra',
-    createdByUsername: '@leader',
+    createdByUsername: '@lead',
     category: 'devops',
     priority: 'low',
     status: 'backlog',
@@ -339,20 +346,22 @@ export const initialTasks: Task[] = [
   }
 ];
 
+export const initialTasks: Task[] = [];
+
 export const initialPhases: MilestonePhase[] = [
   {
     id: 1,
     title: 'Phase 1: Architecture & Technical System Specification',
     description: 'System modeling (DFD, UML, ERD), API contracts, repository configuration, tech stack baseline, and milestone roadmap alignment.',
     targetDate: '2026-09-15',
-    status: 'completed',
-    progressPercentage: 100,
-    adviserSignOff: true,
+    status: 'in_progress',
+    progressPercentage: 0,
+    adviserSignOff: false,
     keyDeliverables: [
-      { id: 'd1', title: 'System Architecture & Data Flow Diagrams', completed: true, requiredForDefense: true },
-      { id: 'd2', title: '3NF Relational Database Schema & Data Dictionary', completed: true, requiredForDefense: true },
-      { id: 'd3', title: 'API Endpoint Specifications & OpenAPI Contract', completed: true, requiredForDefense: true },
-      { id: 'd4', title: 'GitHub Monorepo & Branch Protection Rules Setup', completed: true, requiredForDefense: false }
+      { id: 'd1', title: 'System Architecture & Data Flow Diagrams', completed: false, requiredForDefense: true },
+      { id: 'd2', title: '3NF Relational Database Schema & Data Dictionary', completed: false, requiredForDefense: true },
+      { id: 'd3', title: 'API Endpoint Specifications & OpenAPI Contract', completed: false, requiredForDefense: true },
+      { id: 'd4', title: 'GitHub Monorepo & Branch Protection Rules Setup', completed: false, requiredForDefense: false }
     ]
   },
   {
@@ -360,12 +369,12 @@ export const initialPhases: MilestonePhase[] = [
     title: 'Phase 2: Database Modeling, Auth Engine & Core Backend APIs',
     description: 'PostgreSQL database implementation with Prisma ORM, GitHub OAuth 2.0 authentication middleware, and core CRUD services.',
     targetDate: '2026-10-05',
-    status: 'in_progress',
-    progressPercentage: 65,
+    status: 'upcoming',
+    progressPercentage: 0,
     adviserSignOff: false,
     keyDeliverables: [
-      { id: 'd5', title: 'PostgreSQL Database Migrations & Seeders', completed: true, requiredForDefense: true },
-      { id: 'd6', title: 'GitHub OAuth 2.0 & Session Middleware', completed: true, requiredForDefense: true },
+      { id: 'd5', title: 'PostgreSQL Database Migrations & Seeders', completed: false, requiredForDefense: true },
+      { id: 'd6', title: 'GitHub OAuth 2.0 & Session Middleware', completed: false, requiredForDefense: true },
       { id: 'd7', title: 'Task & Standup Management REST/GraphQL APIs', completed: false, requiredForDefense: true },
       { id: 'd8', title: 'Role-Based Access Control (RBAC) Guards', completed: false, requiredForDefense: true }
     ]
@@ -376,11 +385,11 @@ export const initialPhases: MilestonePhase[] = [
     description: 'React client portal with Emil Kowalski tactile physics, Discord bot ticket claim pipeline, and real-time state synchronization.',
     targetDate: '2026-10-25',
     status: 'upcoming',
-    progressPercentage: 30,
+    progressPercentage: 0,
     adviserSignOff: false,
     keyDeliverables: [
-      { id: 'd9', title: 'Academic Task Matrix & Kanban Board with Drag & Drop', completed: true, requiredForDefense: true },
-      { id: 'd10', title: 'Discord Slash Command Bot Lifecycle (/claim, /resolved, /reviewed)', completed: true, requiredForDefense: true },
+      { id: 'd9', title: 'Academic Task Matrix & Kanban Board with Drag & Drop', completed: false, requiredForDefense: true },
+      { id: 'd10', title: 'Discord Slash Command Bot Lifecycle (/claim, /resolved, /reviewed)', completed: false, requiredForDefense: true },
       { id: 'd11', title: 'Asynchronous Daily Sprint Standup Feed', completed: false, requiredForDefense: true },
       { id: 'd12', title: 'Live GitHub Repository & PR Sync Engine', completed: false, requiredForDefense: false }
     ]
@@ -515,192 +524,14 @@ export const initialStandups: StandupEntry[] = [];
 export const initialActivityLogs: ActivityLog[] = [
   {
     id: 'act-1',
-    timestamp: new Date(Date.now() - 4 * 60 * 1000).toISOString(), // 4m ago
-    userId: 'm2',
-    action: 'claimed ownership of ticket',
-    target: '[CLAIMED][@Jeremy-hub-prog] Architect Relational Database & Entity Relationship Schema'
-  },
-  {
-    id: 'act-2',
-    timestamp: new Date(Date.now() - 22 * 60 * 1000).toISOString(), // 22m ago
-    userId: 'm4',
-    action: 'resolved ticket deliverable',
-    target: '[PENDING-REVIEW] Configure GitHub OAuth 2.0 & Session Middleware'
-  },
-  {
-    id: 'act-3',
-    timestamp: new Date(Date.now() - 110 * 60 * 1000).toISOString(), // ~2h ago
-    userId: 'm3',
-    action: 'submitted PR for review',
-    target: 'Build High-Fidelity UI Design System & Component Library in React'
-  },
-  {
-    id: 'act-4',
-    timestamp: new Date(Date.now() - 280 * 60 * 1000).toISOString(), // ~4h ago
-    userId: 'm1',
-    action: 'dispatched Discord bot command',
-    target: '/claim on #t5 Discord Bot Lifecycle Dispatcher'
-  },
-  {
-    id: 'act-5',
-    timestamp: new Date(Date.now() - 26 * 3600 * 1000).toISOString(), // Yesterday
-    userId: 'm4',
-    action: 'connected GitHub account',
-    target: '@developer_qa'
-  },
-  {
-    id: 'act-6',
-    timestamp: new Date(Date.now() - 72 * 3600 * 1000).toISOString(), // 3d ago
-    userId: 'm6',
-    action: 'assigned Capstone Adviser',
-    target: 'Jay Vince Serato'
+    timestamp: new Date().toISOString(),
+    userId: 'system',
+    action: 'initialized workspace',
+    target: 'CapStoneFlow Academic Governance Platform'
   }
 ];
 
-export const initialCommits: GitHubCommit[] = [
-  {
-    sha: '7b2c9e1a4d8f0293e817c6a541098bfe1234abcd',
-    shortSha: '7b2c9e1',
-    message: 'feat(auth): configure GitHub OAuth 2.0 PKCE handshake & JWT session middleware',
-    description: 'Implements full GitHub OAuth authorization code grant exchange, user identity persistence, and secure session state hydration.',
-    authorName: 'Marc Andrei Regulacion',
-    authorUsername: 'Realwaan',
-    authorAvatar: 'https://github.com/Realwaan.png',
-    date: '2026-08-15T10:45:00.000Z',
-    url: 'https://github.com/Realwaan/capstone-project/commit/7b2c9e1a4d8f0293e817c6a541098bfe1234abcd',
-    branch: 'main',
-    verified: true,
-    stats: { additions: 284, deletions: 12, totalFiles: 6 },
-    changedFiles: [
-      { filename: 'src/components/GitHubAuthModal.tsx', status: 'added', additions: 120, deletions: 0 },
-      { filename: 'src/context/ProjectContext.tsx', status: 'modified', additions: 85, deletions: 12 },
-      { filename: 'src/components/LoginPage.tsx', status: 'modified', additions: 45, deletions: 0 },
-      { filename: 'src/types/index.ts', status: 'modified', additions: 34, deletions: 0 }
-    ],
-    linkedTaskId: 't2'
-  },
-  {
-    sha: '5a91f4d890bc12ef34a567890123456789abcdef',
-    shortSha: '5a91f4d',
-    message: 'feat(db): model 3NF relational schema and Prisma PostgreSQL migration seeders',
-    description: 'Defines normalized 3NF models for users, tasks, standups, and ticket audit events with foreign key cascade constraints.',
-    authorName: 'Jeremy Navarro',
-    authorUsername: 'Jeremy-hub-prog',
-    authorAvatar: 'https://github.com/Jeremy-hub-prog.png',
-    date: '2026-08-15T08:15:00.000Z',
-    url: 'https://github.com/Jeremy-hub-prog/capstone-project/commit/5a91f4d890bc12ef34a567890123456789abcdef',
-    branch: 'feature/db-schema',
-    verified: true,
-    stats: { additions: 412, deletions: 0, totalFiles: 4 },
-    changedFiles: [
-      { filename: 'prisma/schema.prisma', status: 'added', additions: 240, deletions: 0 },
-      { filename: 'docs/erd_diagram.mermaid', status: 'added', additions: 95, deletions: 0 },
-      { filename: 'src/types/index.ts', status: 'modified', additions: 45, deletions: 0 },
-      { filename: 'prisma/seed.ts', status: 'added', additions: 32, deletions: 0 }
-    ],
-    linkedTaskId: 't1'
-  },
-  {
-    sha: '8e32c0a9876543210fedcba9876543210fedcba9',
-    shortSha: '8e32c0a',
-    message: 'feat(ui): implement Emil Kowalski tactile morph buttons, spring physics & responsive layout',
-    description: 'Adds 3-state morphing buttons with 12-bar radial spinner, zero-FOUC theme toggling, and horizontal scroll-snap Kanban track.',
-    authorName: 'Jeremy Navarro',
-    authorUsername: 'Jeremy-hub-prog',
-    authorAvatar: 'https://github.com/Jeremy-hub-prog.png',
-    date: '2026-08-14T19:30:00.000Z',
-    url: 'https://github.com/Jeremy-hub-prog/capstone-project/commit/8e32c0a9876543210fedcba9876543210fedcba9',
-    branch: 'feature/design-system',
-    verified: true,
-    stats: { additions: 340, deletions: 42, totalFiles: 7 },
-    changedFiles: [
-      { filename: 'src/components/MorphButton.tsx', status: 'added', additions: 180, deletions: 0 },
-      { filename: 'src/components/Spinner.tsx', status: 'added', additions: 45, deletions: 0 },
-      { filename: 'src/index.css', status: 'modified', additions: 95, deletions: 42 },
-      { filename: 'design-system/tokens.css', status: 'added', additions: 20, deletions: 0 }
-    ],
-    linkedTaskId: 't3'
-  },
-  {
-    sha: '4f78d12abcdef0123456789abcdef0123456789a',
-    shortSha: '4f78d12',
-    message: 'feat(bot): implement Discord slash command lifecycle dispatcher (/claim, /resolved, /reviewed)',
-    description: 'Adds 5 core Discord slash action buttons, role permissions matrix, and state machine audit history.',
-    authorName: 'Marc Andrei Regulacion',
-    authorUsername: 'Realwaan',
-    authorAvatar: 'https://github.com/Realwaan.png',
-    date: '2026-08-14T14:10:00.000Z',
-    url: 'https://github.com/Realwaan/capstone-project/commit/4f78d12abcdef0123456789abcdef0123456789a',
-    branch: 'feature/discord-bot',
-    verified: true,
-    stats: { additions: 295, deletions: 18, totalFiles: 5 },
-    changedFiles: [
-      { filename: 'src/components/TaskTicketModal.tsx', status: 'modified', additions: 160, deletions: 12 },
-      { filename: 'src/components/RolesPermissionsModal.tsx', status: 'added', additions: 95, deletions: 0 },
-      { filename: 'src/context/ProjectContext.tsx', status: 'modified', additions: 40, deletions: 6 }
-    ],
-    linkedTaskId: 't5'
-  },
-  {
-    sha: '33ebe861234567890abcdef1234567890abcdef1',
-    shortSha: '33ebe86',
-    message: 'feat(init): initialize Capstone repository with CapStoneFlow platform and documentation framework',
-    description: 'Initial commit setting up Vite React TypeScript workspace, styling tokens, and project architecture.',
-    authorName: 'Marc Andrei Regulacion',
-    authorUsername: 'Realwaan',
-    authorAvatar: 'https://github.com/Realwaan.png',
-    date: '2026-08-12T09:00:00.000Z',
-    url: 'https://github.com/Realwaan/capstone-project/commit/33ebe861234567890abcdef1234567890abcdef1',
-    branch: 'main',
-    verified: true,
-    stats: { additions: 1250, deletions: 0, totalFiles: 47 },
-    changedFiles: [
-      { filename: 'package.json', status: 'added', additions: 45, deletions: 0 },
-      { filename: 'vite.config.ts', status: 'added', additions: 30, deletions: 0 },
-      { filename: 'src/App.tsx', status: 'added', additions: 180, deletions: 0 },
-      { filename: 'src/index.css', status: 'added', additions: 320, deletions: 0 }
-    ]
-  }
-];
+export const initialCommits: GitHubCommit[] = [];
 
-export const initialPullRequests: GitHubPullRequest[] = [
-  {
-    number: 14,
-    title: 'feat(auth): GitHub OAuth 2.0 PKCE Handshake & Session Provider',
-    state: 'merged',
-    author: 'Realwaan',
-    authorAvatar: 'https://github.com/Realwaan.png',
-    html_url: 'https://github.com/Realwaan/capstone-project/pull/14',
-    branch: 'feature/github-oauth',
-    targetBranch: 'main',
-    createdAt: '2026-08-14',
-    reviewStatus: 'approved',
-    linkedTaskId: 't2'
-  },
-  {
-    number: 15,
-    title: 'feat(db): 3NF PostgreSQL Relational Schemas & Prisma Migrations',
-    state: 'open',
-    author: 'Jeremy-hub-prog',
-    authorAvatar: 'https://github.com/Jeremy-hub-prog.png',
-    html_url: 'https://github.com/Jeremy-hub-prog/capstone-project/pull/15',
-    branch: 'feature/db-schema',
-    targetBranch: 'main',
-    createdAt: '2026-08-15',
-    reviewStatus: 'pending',
-    linkedTaskId: 't1'
-  },
-  {
-    number: 16,
-    title: 'feat(ui): Emil Kowalski Tactile Morphing Buttons & Spring Micro-interactions',
-    state: 'open',
-    author: 'Jeremy-hub-prog',
-    authorAvatar: 'https://github.com/Jeremy-hub-prog.png',
-    html_url: 'https://github.com/Jeremy-hub-prog/capstone-project/pull/16',
-    branch: 'feature/design-system',
-    targetBranch: 'main',
-    createdAt: '2026-08-15',
-    reviewStatus: 'pending',
-    linkedTaskId: 't3'
-  }
-];
+export const initialPullRequests: GitHubPullRequest[] = [];
+

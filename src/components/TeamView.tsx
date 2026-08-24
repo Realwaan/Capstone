@@ -10,16 +10,24 @@ import {
   UserCheck, 
   Send,
   GraduationCap,
-  ShieldCheck
+  ShieldCheck,
+  Crown,
+  Shield,
+  Radio,
+  WifiOff,
+  Share2,
+  Link2
 } from 'lucide-react';
+import { InviteCollaboratorModal } from './InviteCollaboratorModal';
 
 interface TeamViewProps {
   onOpenStandupModal: () => void;
 }
 
 export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
-  const { members, tasks, standups, project, addMemberByGitHub, isOwner } = useProject();
+  const { members, tasks, standups, project, addMemberByGitHub, isOwner, isMemberOnline } = useProject();
   const [isAddMemberOpen, setIsAddMemberOpen] = React.useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = React.useState(false);
   const [newUsername, setNewUsername] = React.useState('');
   const [newRoleTitle, setNewRoleTitle] = React.useState('Frontend & UI/UX Developer');
   const [isSubmittingMember, setIsSubmittingMember] = React.useState(false);
@@ -66,8 +74,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span className="badge badge-primary">{studentMembers.length} Student Members</span>
-            <span className="badge badge-info">1 Faculty Adviser</span>
+            <span className="badge badge-primary">{studentMembers.length} Student {studentMembers.length === 1 ? 'Member' : 'Members'}</span>
+            <span className="badge badge-info">{members.filter(m => m.role === 'adviser').length} Faculty Adviser</span>
           </div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Team Roster & Workload Transparency</h2>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
@@ -77,10 +85,24 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {isOwner && (
-            <button onClick={() => setIsAddMemberOpen(true)} className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
-              <Users size={14} />
-              <span>Add Member (GitHub)</span>
-            </button>
+            <>
+              <button 
+                onClick={() => setIsInviteModalOpen(true)} 
+                className="btn btn-secondary btn-sm" 
+                style={{ gap: '6px', color: 'var(--primary)' }}
+              >
+                <Share2 size={14} />
+                <span>Invite Collaborators</span>
+              </button>
+              <button 
+                onClick={() => setIsAddMemberOpen(true)} 
+                className="btn btn-secondary btn-sm" 
+                style={{ gap: '6px' }}
+              >
+                <Users size={14} />
+                <span>Add Member (GitHub)</span>
+              </button>
+            </>
           )}
           <button onClick={onOpenStandupModal} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
             <Plus size={15} />
@@ -151,35 +173,106 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
           Active Capstone Team Roster ({studentMembers.length} Members)
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
-          {memberStats.map(({ member, completed, inProgress, loggedHours, completionRate }) => (
-            <div key={member.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <img 
-                  src={member.avatar || `https://github.com/${member.githubUsername || 'ghost'}.png`} 
-                  alt={member.name} 
-                  style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: `2px solid ${member.color}` }}
-                />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {member.name}
-                    </span>
+          {memberStats.map(({ member, completed, inProgress, loggedHours, completionRate }) => {
+            const isOnline = isMemberOnline(member.id);
+
+            return (
+              <div key={member.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <img 
+                      src={member.avatar || `https://github.com/${member.githubUsername || 'ghost'}.png`} 
+                      alt={member.name} 
+                      style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '8px', 
+                        objectFit: 'cover', 
+                        border: isOnline ? '2px solid #10b981' : `2px solid ${member.color}` 
+                      }} 
+                    />
+                    <span 
+                      style={{
+                        position: 'absolute',
+                        bottom: '-2px',
+                        right: '-2px',
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: isOnline ? '#10b981' : '#6b7280',
+                        border: '2px solid var(--bg-surface)',
+                        boxShadow: isOnline ? '0 0 6px #10b981' : 'none'
+                      }}
+                    />
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                    {member.roleTitle}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                    <span className={`badge ${member.permissionLevel === 'owner' ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: '0.55rem', padding: '1px 5px' }}>
-                      {member.permissionLevel === 'owner' ? '👑 Owner' : 'Member'}
-                    </span>
-                    {member.githubUsername && (
-                      <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        @{member.githubUsername}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {member.name}
                       </span>
-                    )}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {member.roleTitle}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
+                      {/* Permission badge */}
+                      {member.permissionLevel === 'owner' ? (
+                        <span
+                          className="badge badge-primary"
+                          style={{ gap: '4px', letterSpacing: '0.07em' }}
+                        >
+                          <Crown size={9} />
+                          Owner
+                        </span>
+                      ) : (
+                        <span
+                          className="badge badge-neutral"
+                          style={{ gap: '4px', letterSpacing: '0.07em' }}
+                        >
+                          <Shield size={9} />
+                          Member
+                        </span>
+                      )}
+
+                      {/* Presence badge */}
+                      {isOnline ? (
+                        <span
+                          className="badge badge-success"
+                          style={{ gap: '4px', letterSpacing: '0.07em' }}
+                        >
+                          <Radio size={9} style={{ flexShrink: 0 }} />
+                          Online
+                        </span>
+                      ) : (
+                        <span
+                          className="badge badge-neutral"
+                          style={{ gap: '4px', letterSpacing: '0.07em', opacity: 0.7 }}
+                        >
+                          <WifiOff size={9} style={{ flexShrink: 0 }} />
+                          Offline
+                        </span>
+                      )}
+
+                      {/* GitHub handle chip */}
+                      {member.githubUsername && (
+                        <span
+                          style={{
+                            fontSize: '0.62rem',
+                            fontFamily: 'var(--font-mono)',
+                            color: 'var(--text-muted)',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '4px',
+                            padding: '1px 5px',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          @{member.githubUsername}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {/* Metrics Breakdown */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', background: 'var(--bg-elevated)', padding: '8px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
@@ -208,7 +301,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       </div>
 
@@ -226,24 +320,56 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
             padding: '18px 24px'
           }}
         >
-          <img 
-            src={adviserMember.avatar} 
-            alt={adviserMember.name} 
-            style={{ width: '56px', height: '56px', borderRadius: '12px', objectFit: 'cover', border: '2px solid #8b5cf6' }} 
-          />
+          <div style={{ position: 'relative' }}>
+            <img 
+              src={adviserMember.avatar} 
+              alt={adviserMember.name} 
+              style={{ 
+                width: '56px', 
+                height: '56px', 
+                borderRadius: '12px', 
+                objectFit: 'cover', 
+                border: isMemberOnline(adviserMember.id) ? '2px solid #10b981' : '2px solid #8b5cf6' 
+              }} 
+            />
+            <span 
+              style={{
+                position: 'absolute',
+                bottom: '-2px',
+                right: '-2px',
+                width: '12px',
+                height: '12px',
+                borderRadius: '50%',
+                backgroundColor: isMemberOnline(adviserMember.id) ? '#10b981' : '#6b7280',
+                border: '2px solid var(--bg-surface)',
+                boxShadow: isMemberOnline(adviserMember.id) ? '0 0 8px #10b981' : 'none'
+              }}
+            />
+          </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
               <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                 {adviserMember.name}
               </span>
-              <span className="badge badge-info" style={{ gap: '4px' }}>
-                <GraduationCap size={12} />
+              <span className="badge badge-info" style={{ gap: '5px', letterSpacing: '0.07em' }}>
+                <GraduationCap size={11} />
                 <span>Capstone Faculty Adviser</span>
               </span>
+              {isMemberOnline(adviserMember.id) ? (
+                <span className="badge badge-success" style={{ gap: '4px', letterSpacing: '0.07em' }}>
+                  <Radio size={9} />
+                  Online
+                </span>
+              ) : (
+                <span className="badge badge-neutral" style={{ gap: '4px', letterSpacing: '0.07em', opacity: 0.7 }}>
+                  <WifiOff size={9} />
+                  Offline
+                </span>
+              )}
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {project.adviser.department} • Official Academic Supervision
+              {project?.adviser?.department || project?.organization || 'Academic Supervision'} • Official Academic Supervision
             </div>
           </div>
 
@@ -348,6 +474,13 @@ export const TeamView: React.FC<TeamViewProps> = ({ onOpenStandupModal }) => {
           })}
         </div>
       </div>
+
+      {/* Invite Collaborators Modal */}
+      <InviteCollaboratorModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        project={project}
+      />
     </div>
   );
 };

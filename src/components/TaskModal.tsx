@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useProject } from '../context/ProjectContext';
 import { Task, TaskCategory, TaskPriority, TaskStatus, Subtask } from '../types';
 import { CustomDropdown } from './CustomDropdown';
+import { PRIORITY_DROPDOWN_OPTIONS, TASK_MODAL_CATEGORY_OPTIONS } from './PriorityBadge';
 import { MorphButton, ButtonState } from './MorphButton';
 import { 
   X, 
@@ -59,6 +61,17 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
 
   const [buttonState, setButtonState] = useState<ButtonState>('idle');
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (taskToEdit) {
       setTitle(taskToEdit.title);
@@ -97,7 +110,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
       // Clean ticket spec
       setProblemStatement('');
       setWhatToFix([]);
-      setAcceptanceCriteria([]);
+      setAcceptanceCriteria([
+        {
+          id: `ac-${Date.now()}`,
+          text: 'Deliverable meets design specification and passes verification',
+          completed: false
+        }
+      ]);
       setRelatedFiles([]);
       setFolder('phase-3-implementation');
     }
@@ -169,6 +188,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
 
     setButtonState('loading');
     setTimeout(() => {
+      const finalCriteria = acceptanceCriteria.length > 0
+        ? acceptanceCriteria
+        : [
+            {
+              id: `ac-${Date.now()}`,
+              text: `Implement ${title.trim()} according to specification and verify functionality`,
+              completed: false
+            }
+          ];
+
       const taskData = {
         title,
         description,
@@ -184,7 +213,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
         subtasks,
         problemStatement: problemStatement.trim() || undefined,
         whatToFix: whatToFix.length > 0 ? whatToFix : undefined,
-        acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
+        acceptanceCriteria: finalCriteria,
         relatedFiles: relatedFiles.length > 0 ? relatedFiles : undefined,
         folder: folder.trim() || undefined,
         createdByUsername: taskToEdit?.createdByUsername || `@${currentMember.name.replace(/\s+/g, '').toLowerCase()}`
@@ -249,8 +278,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
     }
   };
 
-  return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 
@@ -407,16 +436,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
                     value={category}
                     onChange={(val) => setCategory(val)}
                     minWidth="100%"
-                    options={[
-                      { value: 'code', label: '💻 Feature & Code' },
-                      { value: 'backend', label: '🔌 Backend & APIs' },
-                      { value: 'frontend', label: '🎨 Frontend UI/UX' },
-                      { value: 'database', label: '🗄️ Database & Schema' },
-                      { value: 'testing', label: '🧪 Testing & QA' },
-                      { value: 'devops', label: '🚀 DevOps & Infra' },
-                      { value: 'architecture', label: '⚙️ Architecture' },
-                      { value: 'docs', label: '📄 Tech Docs' }
-                    ]}
+                    options={TASK_MODAL_CATEGORY_OPTIONS}
                   />
                 </div>
 
@@ -426,12 +446,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
                     value={priority}
                     onChange={(val) => setPriority(val)}
                     minWidth="100%"
-                    options={[
-                      { value: 'urgent', label: '🔴 Urgent', badge: 'P0', badgeClass: 'badge-danger' },
-                      { value: 'high', label: '🟠 High', badge: 'P1', badgeClass: 'badge-warning' },
-                      { value: 'medium', label: '🟡 Medium', badge: 'P2', badgeClass: 'badge-neutral' },
-                      { value: 'low', label: '🟢 Low', badge: 'P3', badgeClass: 'badge-neutral' }
-                    ]}
+                    options={PRIORITY_DROPDOWN_OPTIONS}
                   />
                 </div>
 
@@ -490,7 +505,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
                     minWidth="100%"
                     options={phases.map(p => ({
                       value: String(p.id),
-                      label: `Phase ${p.id}: ${p.title.split(':')[1] || p.title}`
+                      label: p.title
                     }))}
                   />
                 </div>
@@ -654,10 +669,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
 
               {/* Acceptance Criteria (Checklist ✓) */}
               <div>
-                <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
-                  <span>Acceptance Criteria (Verifiable Definition of Done ✓)</span>
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                    <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
+                    <span>Acceptance Criteria (Definition of Done)</span>
+                  </label>
+                  <span className="badge badge-warning" style={{ fontSize: '0.62rem', padding: '1px 6px', fontWeight: 700 }}>
+                    Required for Review
+                  </span>
+                </div>
                 
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   <input 
@@ -665,7 +685,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
                     value={newCriteriaText} 
                     onChange={(e) => setNewCriteriaText(e.target.value)} 
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCriteria(); } }}
-                    placeholder="e.g. All expected sports appear in schedule filter/list..." 
+                    placeholder="e.g. All expected features verify successfully and pass tests..." 
                     className="input-field" 
                   />
                   <button type="button" onClick={handleAddCriteria} className="btn btn-secondary btn-sm">
@@ -674,30 +694,59 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '140px', overflowY: 'auto' }}>
-                  {acceptanceCriteria.map((c) => (
-                    <div 
-                      key={c.id} 
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '6px 10px',
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-sm)'
-                      }}
+                {acceptanceCriteria.length === 0 ? (
+                  <div style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(245, 158, 11, 0.06)',
+                    border: '1px dashed rgba(245, 158, 11, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px'
+                  }}>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Tasks require at least 1 acceptance criterion before review.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAcceptanceCriteria([{
+                        id: `ac-${Date.now()}`,
+                        text: title.trim() ? `Verify ${title.trim()} functionality and requirements` : 'Verify deliverable functionality and requirements',
+                        completed: false
+                      }])}
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.72rem', height: '24px', color: 'var(--primary)', fontWeight: 700, padding: '2px 8px' }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                        <span style={{ color: 'var(--success)', fontWeight: 800 }}>✓</span>
-                        <span>{c.text}</span>
+                      + Add Standard
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '140px', overflowY: 'auto' }}>
+                    {acceptanceCriteria.map((c) => (
+                      <div 
+                        key={c.id} 
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 10px',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                          <span style={{ color: 'var(--success)', fontWeight: 800 }}>✓</span>
+                          <span>{c.text}</span>
+                        </div>
+                        <button type="button" onClick={() => handleRemoveCriteria(c.id)} className="btn btn-ghost btn-icon" style={{ width: '22px', height: '22px', color: 'var(--text-muted)' }}>
+                          <Trash2 size={12} />
+                        </button>
                       </div>
-                      <button type="button" onClick={() => handleRemoveCriteria(c.id)} className="btn btn-ghost btn-icon" style={{ width: '22px', height: '22px', color: 'var(--text-muted)' }}>
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Related Code Files & Folder Module */}
@@ -807,6 +856,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, taskToEdi
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

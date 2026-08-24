@@ -38,19 +38,18 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
       .reduce((sum, t) => sum + (t.storyPoints || (t.estimatedHours ? Math.ceil(t.estimatedHours / 2) : 3)), 0);
   }, [tasks]);
 
-  const remainingStoryPoints = totalStoryPoints - completedStoryPoints;
+  const remainingStoryPoints = Math.max(0, totalStoryPoints - completedStoryPoints);
 
   // 2. Generate Sprint Day-by-Day Points Timeline
   const sprintData = useMemo(() => {
     const daysCount = sprintDurationDays;
-    const idealStep = totalStoryPoints / (daysCount - 1);
+    const idealStep = totalStoryPoints / Math.max(daysCount - 1, 1);
     
     // Simulate/derive realistic sprint burndown progression based on actual completed tasks
     const completedTasksList = tasks.filter(t => t.status === 'done');
     const currentSprintDay = Math.min(Math.max(Math.floor(daysCount * 0.65), 1), daysCount - 1);
 
     const points = [];
-    let currentRemaining = totalStoryPoints;
 
     for (let day = 0; day < daysCount; day++) {
       const idealRemaining = Math.max(0, Math.round(totalStoryPoints - (idealStep * day)));
@@ -68,7 +67,7 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
         if (day === currentSprintDay) {
           tasksCompletedOnDay = completedTasksList.slice(0, 3).map(t => t.title);
         } else if (day > 0 && day % 2 === 0) {
-          tasksCompletedOnDay = completedTasksList.slice(day - 2, day).map(t => t.title);
+          tasksCompletedOnDay = completedTasksList.slice(Math.max(0, day - 2), day).map(t => t.title);
         }
       }
 
@@ -86,16 +85,16 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
   }, [totalStoryPoints, completedStoryPoints, sprintDurationDays, tasks]);
 
   // 3. SVG Dimensions & Coordinate Mapping
-  const svgWidth = 640;
+  const svgWidth = 680;
   const svgHeight = 260;
-  const padding = { top: 25, right: 30, bottom: 40, left: 45 };
+  const padding = { top: 28, right: 32, bottom: 44, left: 48 };
   const graphWidth = svgWidth - padding.left - padding.right;
   const graphHeight = svgHeight - padding.top - padding.bottom;
 
   const maxPoints = Math.max(totalStoryPoints, 10);
 
-  const getX = (index: number) => padding.left + (index / (sprintDurationDays - 1)) * graphWidth;
-  const getY = (points: number) => padding.top + graphHeight - (points / maxPoints) * graphHeight;
+  const getX = (index: number) => padding.left + (index / Math.max(sprintDurationDays - 1, 1)) * graphWidth;
+  const getY = (pts: number) => padding.top + graphHeight - (pts / maxPoints) * graphHeight;
 
   // Generate SVG Path Strings
   const idealPath = sprintData.points
@@ -117,7 +116,7 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
   const variance = currentIdeal - currentActual; // Positive = Ahead of schedule
   const burnRatePerDay = sprintData.currentSprintDay > 0 
     ? ((totalStoryPoints - currentActual) / sprintData.currentSprintDay).toFixed(1) 
-    : '0';
+    : '0.0';
 
   const daysToFinish = Number(burnRatePerDay) > 0 ? Math.ceil(remainingStoryPoints / Number(burnRatePerDay)) : 0;
 
@@ -128,6 +127,8 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
     { name: 'Sprint 3 (Integrations)', points: 30, target: 32, velocity: '94%' },
     { name: 'Sprint 4 (Active)', points: completedStoryPoints, target: totalStoryPoints, velocity: `${Math.round((completedStoryPoints / Math.max(totalStoryPoints, 1)) * 100)}%` }
   ];
+
+  const activePoint = hoveredDay !== null ? sprintData.points[hoveredDay] : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -242,7 +243,7 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
         </div>
       </div>
 
-      {/* Main Burndown Chart Card */}
+      {/* Main Burndown Chart Card with Zero Layout Shift */}
       <div style={{
         padding: '20px',
         background: 'var(--bg-card)',
@@ -251,7 +252,8 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
         boxShadow: 'var(--shadow-sm)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px'
+        gap: '16px',
+        position: 'relative'
       }}>
         {/* Header & Legends */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
@@ -283,15 +285,18 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
           </div>
         </div>
 
-        {/* SVG Interactive Canvas */}
-        <div style={{ width: '100%', overflowX: 'auto' }}>
+        {/* SVG Interactive Canvas Container */}
+        <div 
+          style={{ width: '100%', overflowX: 'auto', position: 'relative' }}
+          onMouseLeave={() => setHoveredDay(null)}
+        >
           <svg 
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            style={{ width: '100%', minWidth: '480px', height: 'auto', display: 'block' }}
+            style={{ width: '100%', minWidth: '520px', height: 'auto', display: 'block' }}
           >
             <defs>
               <linearGradient id="actualAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.35" />
+                <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.32" />
                 <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
               </linearGradient>
               <filter id="glowEffect" x="-20%" y="-20%" width="140%" height="140%">
@@ -304,7 +309,7 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
               const yVal = padding.top + graphHeight * pct;
               const pointVal = Math.round(maxPoints * (1 - pct));
               return (
-                <g key={i}>
+                <g key={i} style={{ pointerEvents: 'none' }}>
                   <line 
                     x1={padding.left} 
                     y1={yVal} 
@@ -335,6 +340,7 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
               strokeWidth="1.5" 
               strokeDasharray="4 4" 
               opacity="0.6" 
+              style={{ pointerEvents: 'none' }}
             />
 
             {/* Actual Burndown Gradient Area */}
@@ -342,6 +348,7 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
               <path 
                 d={actualAreaPath} 
                 fill="url(#actualAreaGrad)" 
+                style={{ pointerEvents: 'none' }}
               />
             )}
 
@@ -354,54 +361,60 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
                 strokeWidth="3" 
                 strokeLinecap="round"
                 filter="url(#glowEffect)"
+                style={{ pointerEvents: 'none' }}
               />
             )}
 
-            {/* Day Vertical Ticks & Labels */}
+            {/* Active Hover Vertical Guide Beam */}
+            {hoveredDay !== null && (
+              <line 
+                x1={getX(hoveredDay)}
+                y1={padding.top}
+                x2={getX(hoveredDay)}
+                y2={padding.top + graphHeight}
+                stroke="rgba(48, 209, 88, 0.45)"
+                strokeWidth="1.5"
+                strokeDasharray="3 2"
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+
+            {/* Static Visual Nodes & Labels */}
             {sprintData.points.map((p, idx) => {
               const x = getX(idx);
               const isHovered = hoveredDay === idx;
 
               return (
-                <g key={idx}>
+                <g key={idx} style={{ pointerEvents: 'none' }}>
+                  {/* Axis Tick Mark */}
                   <line 
                     x1={x} 
                     y1={padding.top + graphHeight} 
                     x2={x} 
                     y2={padding.top + graphHeight + 6} 
-                    stroke="rgba(255, 255, 255, 0.15)" 
+                    stroke={isHovered ? 'var(--primary)' : 'rgba(255, 255, 255, 0.15)'} 
                   />
+
+                  {/* Day Text Label */}
                   <text 
                     x={x} 
                     y={padding.top + graphHeight + 18} 
                     fill={p.isToday ? 'var(--primary)' : isHovered ? 'var(--text-primary)' : 'var(--text-muted)'} 
-                    fontSize="9" 
-                    fontWeight={p.isToday || isHovered ? '700' : '500'}
+                    fontSize={isHovered ? '10' : '9'} 
+                    fontWeight={p.isToday || isHovered ? '800' : '500'}
                     textAnchor="middle"
                     fontFamily="var(--font-mono)"
                   >
                     {p.isToday ? 'TODAY' : `D${idx + 1}`}
                   </text>
 
-                  {/* Interactive Day Column Hover Target */}
-                  <rect 
-                    x={x - (graphWidth / (sprintDurationDays - 1)) / 2}
-                    y={padding.top}
-                    width={graphWidth / (sprintDurationDays - 1)}
-                    height={graphHeight}
-                    fill="transparent"
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => setHoveredDay(idx)}
-                    onMouseLeave={() => setHoveredDay(null)}
-                  />
-
                   {/* Ideal Node */}
                   <circle 
                     cx={x} 
                     cy={getY(p.ideal)} 
-                    r={isHovered ? 4 : 2} 
-                    fill="var(--text-muted)" 
-                    opacity="0.7"
+                    r={isHovered ? 4 : 2.5} 
+                    fill={isHovered ? '#fff' : 'var(--text-muted)'} 
+                    opacity="0.8"
                   />
 
                   {/* Actual Data Node */}
@@ -410,61 +423,88 @@ export const SprintBurndownChart: React.FC<SprintBurndownChartProps> = ({
                       cx={x} 
                       cy={getY(p.actual)} 
                       r={p.isToday || isHovered ? 6 : 4} 
-                      fill="var(--bg-card)" 
+                      fill="var(--bg-surface)" 
                       stroke="var(--primary)" 
-                      strokeWidth="2.5"
+                      strokeWidth={isHovered ? '3' : '2'}
                     />
                   )}
                 </g>
               );
             })}
+
+            {/* Top Interactive Overlay Layer (Captures hover reliably with zero jitter) */}
+            {sprintData.points.map((_, idx) => {
+              const x = getX(idx);
+              const stepWidth = graphWidth / Math.max(sprintDurationDays - 1, 1);
+
+              return (
+                <rect 
+                  key={`hover-zone-${idx}`}
+                  x={x - stepWidth / 2}
+                  y={padding.top}
+                  width={stepWidth}
+                  height={graphHeight + 30}
+                  fill="rgba(0, 0, 0, 0.001)"
+                  style={{ cursor: 'pointer', pointerEvents: 'all' }}
+                  onMouseEnter={() => setHoveredDay(idx)}
+                />
+              );
+            })}
           </svg>
         </div>
 
-        {/* Dynamic Tooltip & Day Inspector Drawer */}
-        {hoveredDay !== null && sprintData.points[hoveredDay] && (
-          <div style={{
-            padding: '10px 14px',
-            background: 'var(--bg-elevated)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
-            animation: 'fadeIn 150ms ease-out'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                background: 'rgba(99, 102, 241, 0.15)',
-                color: 'var(--primary)',
-                fontWeight: 800,
-                fontSize: '0.75rem',
-                fontFamily: 'var(--font-mono)'
-              }}>
-                {sprintData.points[hoveredDay].dayLabel}
+        {/* Stable Fixed-Height Telemetry Inspector Bar (Zero Layout Shift) */}
+        <div style={{
+          minHeight: '48px',
+          padding: '10px 14px',
+          background: 'var(--bg-elevated)',
+          border: activePoint ? '1px solid rgba(48, 209, 88, 0.3)' : '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+          transition: 'border-color 160ms var(--ease-out), background-color 160ms var(--ease-out)'
+        }}>
+          {activePoint ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: activePoint.isToday ? 'rgba(48, 209, 88, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  color: activePoint.isToday ? 'var(--primary)' : 'var(--text-primary)',
+                  fontWeight: 800,
+                  fontSize: '0.74rem',
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  {activePoint.dayLabel} {activePoint.isToday ? '(TODAY)' : ''}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Remaining: <strong style={{ color: 'var(--text-primary)' }}>{activePoint.actual !== null ? `${activePoint.actual} pts` : 'Pending'}</strong>
+                  {' '}(Ideal Target: <span style={{ color: 'var(--text-muted)' }}>{activePoint.ideal} pts</span>)
+                </div>
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                Remaining: <strong style={{ color: 'var(--text-primary)' }}>{sprintData.points[hoveredDay].actual ?? 'Pending'} pts</strong>
-                {' '}(Ideal Target: <span style={{ color: 'var(--text-muted)' }}>{sprintData.points[hoveredDay].ideal} pts</span>)
-              </div>
-            </div>
 
-            {sprintData.points[hoveredDay].tasksDone.length > 0 ? (
-              <div style={{ fontSize: '0.72rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <CheckCircle2 size={12} />
-                <span>Delivered: {sprintData.points[hoveredDay].tasksDone.join(', ')}</span>
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                No state changes on this date
-              </div>
-            )}
-          </div>
-        )}
+              {activePoint.tasksDone.length > 0 ? (
+                <div style={{ fontSize: '0.72rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <CheckCircle2 size={12} />
+                  <span>Delivered: {activePoint.tasksDone.join(', ')}</span>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {activePoint.actual !== null ? 'State checkpoint recorded' : 'Forecasted delivery trajectory'}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.76rem' }}>
+              <Info size={14} style={{ color: 'var(--primary)' }} />
+              <span>Hover across any sprint day (<strong>D1–D14</strong> or <strong>TODAY</strong>) to inspect daily burndown velocity & deliverable progress.</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Historical Team Velocity & Defense Runway */}

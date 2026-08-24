@@ -4,6 +4,19 @@ export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'peer_review' | 'a
 
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
 
+export interface DiscordTicketLink {
+  taskId?: string;
+  guildId: string;
+  channelId: string;
+  threadId?: string;
+  messageId?: string;
+  channelUrl: string;
+  reused?: boolean;
+  syncStatus: 'pending' | 'synced' | 'error';
+  lastSyncedAt?: string;
+  lastError?: string;
+}
+
 export type TaskCategory = 'code' | 'feature' | 'backend' | 'frontend' | 'database' | 'testing' | 'devops' | 'architecture' | 'design' | 'docs';
 
 export interface Subtask {
@@ -14,7 +27,7 @@ export interface Subtask {
 
 export interface TicketEvent {
   id: string;
-  type: 'claimed' | 'unclaimed' | 'resolved' | 'reviewed' | 'closed' | 'reopened';
+  type: 'claimed' | 'unclaimed' | 'resolved' | 'peer_reviewed' | 'adviser_approved' | 'reviewed' | 'closed' | 'reopened';
   username: string;
   timestamp: string;
   oldStatus: string;
@@ -35,6 +48,17 @@ export interface TeamMember {
   avatar: string;
   color: string;
   githubUsername?: string;
+  lastActive?: string;
+}
+
+export interface OnlinePresenceUser {
+  memberId: string;
+  name: string;
+  avatar: string;
+  githubUsername?: string;
+  roleTitle: string;
+  onlineAt: string;
+  currentView?: string;
 }
 
 export interface Task {
@@ -58,6 +82,7 @@ export interface Task {
   updatedAt: string;
   attachments?: TaskAttachment[];
   tags?: string[];
+  accessModifier?: AccessModifier;
   
   // Ticket Specification & Discord-style Claim System
   problemStatement?: string;
@@ -71,11 +96,16 @@ export interface Task {
   prUrl?: string;
   resolvedAt?: string;
   resolvedByUsername?: string;
+  peerReviewedAt?: string;
+  peerReviewedByUsername?: string;
+  adviserReviewedAt?: string;
+  adviserReviewedByUsername?: string;
   reviewedAt?: string;
   reviewedByUsername?: string;
   closedAt?: string;
   closedByUsername?: string;
   ticketEvents?: TicketEvent[];
+  discordTicket?: DiscordTicketLink;
 }
 
 export interface TaskAttachment {
@@ -106,6 +136,9 @@ export interface MilestonePhase {
   keyDeliverables: PhaseDeliverable[];
   adviserSignOff: boolean;
   signedOffDate?: string;
+  signedOffBy?: string;
+  consultationNotes?: string;
+  proofUrl?: string;
 }
 
 export interface ChapterSection {
@@ -128,6 +161,9 @@ export interface ManuscriptChapter {
   lastUpdated: string;
   sections: ChapterSection[];
   adviserStatus: 'needs_revision' | 'in_review' | 'approved' | 'not_submitted';
+  draftContent?: string;
+  rrlEntries?: any[];
+  isoEvaluations?: any[];
 }
 
 export interface RevisionItem {
@@ -160,10 +196,41 @@ export interface ActivityLog {
   icon?: string;
 }
 
+export type ProjectStatus = 'active' | 'provisioning' | 'paused' | 'archived';
+
+export type AccessModifier = 'public' | 'protected' | 'package-private' | 'private';
+
+export type ProjectTemplatePreset = 'agile_software' | 'full_coding' | 'hardware_iot' | 'capstone_master' | 'blank_database';
+
 export interface CapstoneProject {
   id: string;
   title: string;
   subtitle: string;
+  organization?: string;
+  region?: string;
+  status?: ProjectStatus;
+  accessLevel?: AccessModifier;
+  createdById?: string;
+  createdByName?: string;
+  trackType?: 'full_coding' | 'software_engineering' | 'hardware_iot' | 'research_manuscript';
+  hasManuscript?: boolean;
+  inviteCode?: string;
+  userRole?: 'owner' | 'editor' | 'member' | 'adviser' | 'viewer';
+  isOwner?: boolean;
+  memberCount?: number;
+  collaborators?: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    role: string;
+    permission: 'owner' | 'editor' | 'member' | 'adviser' | 'viewer';
+  }>;
+  anonKey?: string;
+  serviceRoleKey?: string;
+  projectUrl?: string;
+  databasePassword?: string;
+  dbConnectionUri?: string;
+  createdAt?: string;
   targetDefenseDate: string;
   proposalDefenseDate?: string;
   currentPhaseId: number;
@@ -176,6 +243,25 @@ export interface CapstoneProject {
     department: string;
   };
   panelMembers: string[];
+}
+
+export interface NewProjectPayload {
+  title: string;
+  subtitle?: string;
+  organization: string;
+  region: string;
+  accessLevel?: AccessModifier;
+  trackType?: 'full_coding' | 'software_engineering' | 'hardware_iot' | 'research_manuscript';
+  hasManuscript?: boolean;
+  databasePassword?: string;
+  templatePreset: ProjectTemplatePreset;
+  targetDefenseDate: string;
+  teamName?: string;
+  githubRepoUrl?: string;
+  adviserName?: string;
+  adviserEmail?: string;
+  adviserDepartment?: string;
+  ownerName?: string;
 }
 
 export interface GitHubUser {

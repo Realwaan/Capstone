@@ -184,12 +184,12 @@ export const generateAdviserReportAI = async (
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review');
   const activePhase = phases.find(p => p.id === project.currentPhaseId) || phases[0];
 
-  const systemInstruction = `You are a professional Academic Project Coordinator generating an Executive Capstone Progress Briefing for Faculty Adviser ${project.adviser.name}. Provide a well-structured, formal, objective Markdown report suitable for university department evaluation.`;
+  const systemInstruction = `You are a professional Academic Project Coordinator generating an Executive Capstone Progress Briefing for Faculty Adviser ${project?.adviser?.name || 'Faculty Adviser'}. Provide a well-structured, formal, objective Markdown report suitable for university department evaluation.`;
 
   const contextData = `
 Project Title: ${project.title}
-Team Name: ${project.teamName}
-Faculty Adviser: ${project.adviser.name} (${project.adviser.department})
+Team Name: ${project.teamName || `${project.title} Team`}
+Faculty Adviser: ${project?.adviser?.name || 'Faculty Adviser'} (${project?.adviser?.department || project?.organization || 'Academic Supervision'})
 Target Defense: ${project.targetDefenseDate}
 Current Active Phase: Phase ${activePhase?.id} - ${activePhase?.title} (${activePhase?.progressPercentage}% Complete)
 Overall Progress: ${project.overallProgress}%
@@ -231,7 +231,7 @@ Include:
   return `# Executive Capstone Progress Briefing
 **Project:** ${project.title}  
 **Team:** ${project.teamName}  
-**Faculty Adviser:** ${project.adviser.name} (${project.adviser.department})  
+**Faculty Adviser:** ${project?.adviser?.name || 'Faculty Adviser'} (${project?.adviser?.department || project?.organization || 'Academic Supervision'})  
 **Date Generated:** ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}  
 **Target Defense:** ${project.targetDefenseDate}  
 **Overall Readiness:** ${project.overallProgress}%  

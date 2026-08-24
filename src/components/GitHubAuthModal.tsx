@@ -42,6 +42,17 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
 
   const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
 
+  // Lock body scroll while modal is open
+  React.useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleConnectByUsername = async (e?: React.FormEvent, customHandle?: string) => {
@@ -207,7 +218,7 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
                     type="text" 
                     value={repoUrl} 
                     onChange={(e) => setRepoUrl(e.target.value)} 
-                    placeholder="e.g. Realwaan/capstone-project or https://github.com/..." 
+                    placeholder="e.g. owner/repo or https://github.com/owner/repo" 
                     className="input-field"
                     style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
                   />
@@ -324,44 +335,46 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
               {authMode === 'username' ? (
                 /* Mode 1: Quick Username & Token */
                 <form onSubmit={(e) => handleConnectByUsername(e)} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {/* Quick Select Team Members */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                      Quick 1-Click Connect Team Handle:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-                      {members.filter(m => m.githubUsername).map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => handleConnectByUsername(undefined, m.githubUsername)}
-                          disabled={loading}
-                          className="btn btn-secondary btn-sm"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '8px 10px',
-                            justifyContent: 'flex-start'
-                          }}
-                        >
-                          <img 
-                            src={m.avatar || `https://github.com/${m.githubUsername}.png`} 
-                            alt={m.name} 
-                            style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                          <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: '0.76rem', fontWeight: 700, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              @{m.githubUsername}
+                  {/* Quick Select Team Members if any exist */}
+                  {members.filter(m => m.githubUsername).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                        Quick 1-Click Connect Team Handle:
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        {members.filter(m => m.githubUsername).map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleConnectByUsername(undefined, m.githubUsername)}
+                            disabled={loading}
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 10px',
+                              justifyContent: 'flex-start'
+                            }}
+                          >
+                            <img 
+                              src={m.avatar || `https://github.com/${m.githubUsername}.png`} 
+                              alt={m.name} 
+                              style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
+                            />
+                            <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: '0.76rem', fontWeight: 700, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                @{m.githubUsername}
+                              </div>
+                              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                                {m.name.split(' ')[0]}
+                              </div>
                             </div>
-                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                              {m.name.split(' ')[0]}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Or Custom Username */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -370,7 +383,7 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({ isOpen, onClos
                       type="text"
                       value={handleInput}
                       onChange={(e) => setHandleInput(e.target.value)}
-                      placeholder="e.g. Realwaan or Jeremy-hub-prog"
+                      placeholder="e.g. your-github-handle"
                       className="input-field"
                       style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
                     />

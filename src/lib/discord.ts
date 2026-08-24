@@ -3,6 +3,7 @@ import { Task, StandupEntry, MilestonePhase } from '../types';
 const DISCORD_WEBHOOK_KEY = 'capstoneflow_discord_webhook';
 
 export const getDiscordWebhookUrl = (): string => {
+  if (!import.meta.env.DEV) return '';
   const envUrl = import.meta.env.VITE_DISCORD_WEBHOOK_URL;
   if (typeof envUrl === 'string' && envUrl.trim() !== '' && !envUrl.includes('placeholder')) {
     return envUrl.trim();
@@ -12,6 +13,7 @@ export const getDiscordWebhookUrl = (): string => {
 };
 
 export const setDiscordWebhookUrl = (url: string) => {
+  if (!import.meta.env.DEV) return;
   if (url && url.trim()) {
     localStorage.setItem(DISCORD_WEBHOOK_KEY, url.trim());
   } else {
@@ -25,17 +27,15 @@ export const isDiscordConfigured = (): boolean => {
 };
 
 const sendDiscordPayload = async (payload: any, customUrl?: string): Promise<boolean> => {
-  const webhookUrl = customUrl || getDiscordWebhookUrl();
-  if (!webhookUrl || !webhookUrl.includes('discord.com/api/webhooks')) {
-    return false;
-  }
-
   try {
-    const res = await fetch(webhookUrl, {
+    const isDevelopmentDirectWebhook = import.meta.env.DEV && (customUrl || getDiscordWebhookUrl());
+    const endpoint = isDevelopmentDirectWebhook ? (customUrl || getDiscordWebhookUrl()) : '/api/discord/notify';
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'same-origin',
       body: JSON.stringify(payload)
     });
     return res.ok || res.status === 204;

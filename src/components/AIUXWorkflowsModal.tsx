@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useProject } from '../context/ProjectContext';
 import { AI_UX_WORKFLOWS, AIUXWorkflow, AIUXWorkflowStep } from '../data/aiUxWorkflows';
 import { Task, TaskPriority, TaskCategory } from '../types';
@@ -163,7 +164,7 @@ ${step.acceptanceCriteria.map(c => `- [ ] ${c}`).join('\n')}
     toast.success(`Downloaded ${activeWorkflow.steps.length} Markdown ticket templates!`);
   };
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
       <div 
         className="modal-content" 
@@ -367,7 +368,7 @@ ${step.acceptanceCriteria.map(c => `- [ ] ${c}`).join('\n')}
                   onChange={e => setCustomFeatureName(e.target.value)}
                   className="input-field" 
                   style={{ height: '30px', fontSize: '0.82rem', marginTop: '2px', border: 'none', background: 'transparent', padding: 0 }}
-                  placeholder="e.g. USCCE Automated Thesis Defense Simulator"
+                  placeholder="e.g. Automated Thesis Defense Simulator & Workflow Platform"
                 />
               </div>
             </div>
@@ -502,6 +503,7 @@ ${step.acceptanceCriteria.map(c => `- [ ] ${c}`).join('\n')}
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

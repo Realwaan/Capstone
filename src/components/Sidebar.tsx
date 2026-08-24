@@ -1,5 +1,6 @@
 import React from 'react';
 import { useProject } from '../context/ProjectContext';
+import { CapStoneFlowLogo } from './CapStoneFlowLogo';
 import { 
   LayoutDashboard, 
   KanbanSquare, 
@@ -9,13 +10,13 @@ import {
   Users, 
   FileText, 
   Settings,
-  Terminal,
   ChevronRight,
   X
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 
 export type ViewType = 
+  | 'projects'
   | 'dashboard' 
   | 'kanban' 
   | 'github'
@@ -31,24 +32,38 @@ interface SidebarProps {
   setActiveView: (view: ViewType) => void;
   isOpenOnMobile?: boolean;
   onCloseMobile?: () => void;
+  onOpenProjectsOverview?: () => void;
+  onOpenCreateProject?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   activeView, 
   setActiveView,
   isOpenOnMobile = false,
-  onCloseMobile
+  onCloseMobile,
+  onOpenProjectsOverview,
+  onOpenCreateProject
 }) => {
-  const { project, tasks, revisions, isGitHubConnected, githubUser } = useProject();
+  const { project, phases = [], tasks = [], chapters = [], revisions = [], isGitHubConnected, githubUser } = useProject();
 
-  const activeTasksCount = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review').length;
-  const pendingRevisionsCount = revisions.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
+  const activeTasksCount = (tasks || []).filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review').length;
+  const pendingRevisionsCount = (revisions || []).filter(r => r.status === 'pending' || r.status === 'in_progress').length;
+  const completedChaptersCount = (chapters || []).filter(c => c?.sections && c.sections.every(s => s.completed)).length;
+  const hasManuscriptTrack = project?.hasManuscript === true || project?.trackType === 'research_manuscript';
+
+  const currentPhaseIndex = (phases || []).findIndex(p => p.id === project?.currentPhaseId);
+  const currentPhase = (phases || []).find(p => p.id === project?.currentPhaseId);
+  const activePhaseBadge = (phases || []).length > 0 ? (currentPhaseIndex >= 0 ? `P${currentPhaseIndex + 1}` : 'P1') : undefined;
+  const activePhaseLabel = currentPhase 
+    ? (currentPhase.title.includes(':') ? currentPhase.title.split(':')[0].trim() : `Phase ${currentPhaseIndex >= 0 ? currentPhaseIndex + 1 : 1}`)
+    : ((phases || []).length > 0 ? 'Phase 1' : 'No Phases');
 
   const navItems = [
     { id: 'dashboard' as ViewType, label: 'Overview', icon: LayoutDashboard },
     { id: 'kanban' as ViewType, label: 'Task Matrix & Board', icon: KanbanSquare, badge: activeTasksCount > 0 ? activeTasksCount : undefined, badgeColor: 'badge-primary' },
     { id: 'github' as ViewType, label: 'GitHub Repository Hub', icon: GitHubIcon, badge: isGitHubConnected ? `@${githubUser?.login}` : 'Connect', badgeColor: isGitHubConnected ? 'badge-success' : 'badge-neutral' },
-    { id: 'timeline' as ViewType, label: 'Milestones & Gantt', icon: Milestone, badge: `P${project.currentPhaseId}`, badgeColor: 'badge-neutral' },
+    { id: 'timeline' as ViewType, label: 'Milestones & Gantt', icon: Milestone, badge: activePhaseBadge, badgeColor: 'badge-neutral' },
+    ...(hasManuscriptTrack ? [{ id: 'manuscript' as ViewType, label: '5-Chapter Manuscript', icon: BookOpen, badge: `${completedChaptersCount}/5`, badgeColor: 'badge-primary' }] : []),
     { id: 'revisions' as ViewType, label: 'Adviser Revisions', icon: MessageSquareCheck, badge: pendingRevisionsCount > 0 ? pendingRevisionsCount : undefined, badgeColor: 'badge-warning' },
     { id: 'team' as ViewType, label: 'Team & Standups', icon: Users },
     { id: 'reports' as ViewType, label: 'Progress Reports', icon: FileText },
@@ -121,51 +136,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '7px',
-              background: 'var(--primary)',
-              color: '#061109',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '0.9rem',
-              boxShadow: '0 2px 8px var(--primary-glow)'
-            }}>
-              <Terminal size={15} />
-            </div>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.035em', lineHeight: 1 }}>
-                CapStone<span style={{ color: 'var(--primary)' }}>Flow</span>
-              </div>
-              <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                v2.4 Academic Edition
-              </div>
-            </div>
+          <div 
+            onClick={() => setActiveView('projects')}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+            title="Back to All Projects Portal"
+          >
+            <CapStoneFlowLogo size="md" showBadge={true} badgeText="v2.6" />
+            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>↵</span>
           </div>
         </div>
 
-        {/* Project Context Sub-Header */}
-        <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
-            Workspace
+        {/* Project Context Sub-Header (Clickable to switch / manage projects) */}
+        <div 
+          onClick={() => setActiveView('projects')}
+          style={{ 
+            padding: '12px 18px', 
+            borderBottom: '1px solid var(--border-subtle)', 
+            background: 'var(--bg-elevated)',
+            cursor: 'pointer',
+            transition: 'background-color 140ms ease'
+          }}
+          title="Click to view All Projects Portal"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+              Active Workspace
+            </span>
+            <ChevronRight size={12} style={{ color: 'var(--text-muted)' }} />
           </div>
-          <div style={{ fontSize: '0.84rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '1px' }}>
+          <div style={{ fontSize: '0.84rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px', color: 'var(--text-primary)' }}>
             {project.title}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }} />
             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              Phase {project.currentPhaseId} Active • {project.overallProgress}%
+              {phases.length > 0 ? `${activePhaseLabel} Active • ${project.overallProgress}%` : `${project.overallProgress}% Complete`}
             </span>
           </div>
         </div>
 
         {/* Navigation Items */}
-        <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <nav id="sidebar-nav" style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <div style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Navigation
           </div>
@@ -175,6 +186,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <button
                 key={item.id}
+                id={`sidebar-${item.id}`}
                 onClick={() => handleNavClick(item.id)}
                 className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
                 style={{
@@ -240,10 +252,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Adviser
           </div>
           <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {project.adviser.name}
+            {project?.adviser?.name || 'Faculty Adviser'}
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {project.adviser.department}
+            {project?.adviser?.department || project?.organization || 'Academic Supervision'}
           </div>
         </div>
       </aside>

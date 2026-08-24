@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useProject } from '../context/ProjectContext';
 import { X, MessageSquareCheck } from 'lucide-react';
 import { CustomDropdown } from './CustomDropdown';
@@ -13,12 +14,23 @@ interface RevisionModalProps {
 export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose }) => {
   const { addRevision, project } = useProject();
 
-  const [source, setSource] = useState(project.adviser.name);
+  const [source, setSource] = useState(project?.adviser?.name || 'Faculty Adviser');
   const [chapterOrComponent, setChapterOrComponent] = useState('Chapter 3: Methodology');
   const [comment, setComment] = useState('');
   const [actionTaken, setActionTaken] = useState('');
   const [status, setStatus] = useState<'pending' | 'in_progress' | 'resolved' | 'verified'>('pending');
   const [buttonState, setButtonState] = useState<ButtonState>('idle');
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,15 +73,24 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
     }, 350);
   };
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1300, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div 
-        className="modal-content" 
+        className="modal-content animate-emil-card" 
         onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: '620px',
+          width: '94%',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
+          background: 'var(--bg-modal)',
+          border: '1px solid var(--border-card)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: 'var(--shadow-xl)',
+          overflow: 'hidden'
         }}
       >
         {/* Header */}
@@ -79,7 +100,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between',
-          background: 'var(--bg-card)'
+          background: 'var(--bg-surface)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(242, 153, 74, 0.15)', color: 'var(--warning)' }}>
@@ -125,11 +146,33 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
                 required 
                 style={{ fontSize: '0.82rem' }}
               />
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                {[
+                  'Chapter 1: Problem Background',
+                  'Chapter 2: Literature Review',
+                  'Chapter 3: Methodology',
+                  'Chapter 4: Evaluation',
+                  'System Architecture'
+                ].map(chap => (
+                  <button
+                    type="button"
+                    key={chap}
+                    onClick={() => setChapterOrComponent(chap)}
+                    className="prompt-starter-chip"
+                    style={{ fontSize: '0.68rem', padding: '2px 8px' }}
+                  >
+                    {chap}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <div>
-            <label className="input-label">Critique / Revision Directive *</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label className="input-label" style={{ margin: 0 }}>Critique / Revision Directive *</label>
+              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>Directive Starters:</span>
+            </div>
             <textarea 
               value={comment} 
               onChange={(e) => setComment(e.target.value)} 
@@ -139,6 +182,23 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
               required 
               style={{ fontSize: '0.82rem', resize: 'none' }}
             />
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+              {[
+                '📝 Justify sample size and respondent selection methodology',
+                '📖 Audit in-text citations & references for APA 7th compliance',
+                '🏛️ Refine architecture flowchart with database relationships',
+                '📊 Include System Usability Scale (SUS) questionnaire results'
+              ].map(dir => (
+                <button
+                  type="button"
+                  key={dir}
+                  onClick={() => setComment(dir)}
+                  className="prompt-starter-chip"
+                >
+                  + {dir}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -201,6 +261,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

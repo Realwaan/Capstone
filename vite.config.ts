@@ -54,6 +54,28 @@ export default defineConfig(({ mode }) => {
                     });
                     const userData = (await userRes.json()) as any;
 
+                    // If email is null (due to GitHub privacy settings), fetch primary email from /user/emails
+                    if (!userData.email) {
+                      try {
+                        const emailsResponse = await fetch('https://api.github.com/user/emails', {
+                          headers: {
+                            'Authorization': `Bearer ${tokenData.access_token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'User-Agent': 'CapStoneFlow-App'
+                          }
+                        });
+                        const emails = (await emailsResponse.json()) as any;
+                        if (Array.isArray(emails)) {
+                          const primaryEmail = emails.find(e => e.primary && e.verified) || emails.find(e => e.primary) || emails[0];
+                          if (primaryEmail?.email) {
+                            userData.email = primaryEmail.email;
+                          }
+                        }
+                      } catch (emailErr) {
+                        console.warn('Could not fetch user emails in dev proxy:', emailErr);
+                      }
+                    }
+
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
                       access_token: tokenData.access_token,
@@ -75,6 +97,30 @@ export default defineConfig(({ mode }) => {
           });
         }
       }
-    ]
+    ],
+    build: {
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'vendor-react';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('driver.js') || id.includes('canvas-confetti')) {
+                return 'vendor-tour-fx';
+              }
+              if (id.includes('marked') || id.includes('dompurify')) {
+                return 'vendor-markdown';
+              }
+              return 'vendor-core';
+            }
+          }
+        }
+      }
+    }
   };
 });

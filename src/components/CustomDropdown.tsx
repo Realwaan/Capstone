@@ -5,6 +5,7 @@ export interface DropdownOption<T = string> {
   value: T;
   label: string;
   icon?: React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>;
+  iconColor?: string;
   badge?: string;
   badgeClass?: string;
 }
@@ -57,7 +58,7 @@ export function CustomDropdown<T extends string = string>({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="input-field"
+        className="custom-dropdown-btn"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -70,16 +71,26 @@ export function CustomDropdown<T extends string = string>({
           fontSize,
           userSelect: 'none',
           borderRadius: 'var(--radius-sm)',
-          background: 'var(--bg-elevated)',
+          background: 'var(--bg-card)',
           border: '1px solid var(--border-card)',
           color: 'var(--text-primary)',
-          transition: 'border-color 140ms var(--ease-out), background 140ms var(--ease-out)'
+          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+          transition: 'all 140ms var(--ease-out)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-          {PrefixIcon && <PrefixIcon size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
-          {selectedOption?.icon && <selectedOption.icon size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+          {selectedOption?.icon ? (
+            <selectedOption.icon
+              size={13}
+              style={{
+                color: selectedOption.iconColor || 'var(--primary)',
+                flexShrink: 0
+              }}
+            />
+          ) : PrefixIcon ? (
+            <PrefixIcon size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          ) : null}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: 'var(--text-primary)' }}>
             {selectedOption ? selectedOption.label : placeholder || 'Select...'}
           </span>
         </div>
@@ -106,7 +117,11 @@ export function CustomDropdown<T extends string = string>({
             minWidth: 'max(100%, ' + minWidth + ')',
             maxHeight: '260px',
             overflowY: 'auto',
-            padding: '4px',
+            padding: '6px',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-lg)',
             zIndex: 1050
           }}
         >
@@ -122,14 +137,30 @@ export function CustomDropdown<T extends string = string>({
                 }}
                 className="dropdown-item"
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: '8px',
+                  padding: '6px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
                   fontWeight: isSelected ? 700 : 500,
-                  color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  background: isSelected ? 'var(--primary-light)' : 'transparent'
+                  color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                  background: isSelected ? 'var(--primary-light)' : 'transparent',
+                  transition: 'background 120ms var(--ease-out)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                  {OptIcon && <OptIcon size={14} style={{ color: isSelected ? 'var(--primary)' : 'var(--text-muted)' }} />}
+                  {OptIcon && (
+                    <OptIcon
+                      size={14}
+                      style={{
+                        color: opt.iconColor || (isSelected ? 'var(--primary)' : 'var(--text-muted)'),
+                        flexShrink: 0
+                      }}
+                    />
+                  )}
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {opt.label}
                   </span>

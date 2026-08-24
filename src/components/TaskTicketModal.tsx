@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useProject } from '../context/ProjectContext';
 import { Task } from '../types';
 import { 
@@ -13,18 +14,23 @@ import {
   ExternalLink, 
   AlertCircle, 
   CheckSquare, 
-  Square, 
+  Clock, 
+  GitPullRequest, 
   Edit3, 
-  UserCheck, 
-  UserMinus,
-  Bot,
-  Copy,
-  Check,
-  Send,
-  Lock,
-  GitPullRequest,
+  CornerDownRight, 
+  Tag, 
+  Share2, 
+  Layers, 
   ArrowRight,
-  ShieldCheck,
+  Shield,
+  HelpCircle,
+  Copy,
+  Terminal,
+  Lock,
+  Square,
+  Check,
+  Bot,
+  UserMinus,
   Paperclip,
   Download,
   Trash2,
@@ -38,6 +44,7 @@ import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { formatRelativeTime, formatExactTimestamp } from '../utils/time';
 import { formatFileSize } from '../lib/supabaseStorage';
+import { getTaskSubmissionGate } from '../lib/workflow';
 
 interface TaskTicketModalProps {
   task: Task | null;
@@ -47,19 +54,20 @@ interface TaskTicketModalProps {
 }
 
 export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
-  task,
+  task: initialTask,
   isOpen,
   onClose,
   onEditTask
 }) => {
   const { 
+    tasks,
     currentMember, 
     members, 
     claimTask, 
     releaseTask, 
     resolveTask,
     reviewTask,
-    closeTask,
+    retryDiscordTicket,
     toggleTaskAcceptanceCriteria,
     toggleSubtask,
     uploadTaskAttachment,
@@ -67,23 +75,41 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
     githubUser 
   } = useProject();
 
+  // Dynamically bound to ProjectContext state so uploads and changes reflect immediately
+  const task = initialTask ? (tasks.find(t => t.id === initialTask.id) || initialTask) : null;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [claimBtnState, setClaimBtnState] = useState<ButtonState>('idle');
   const [resolveBtnState, setResolveBtnState] = useState<ButtonState>('idle');
   const [reviewBtnState, setReviewBtnState] = useState<ButtonState>('idle');
-  const [closeBtnState, setCloseBtnState] = useState<ButtonState>('idle');
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
+  const [copiedGitCmd, setCopiedGitCmd] = useState<string | null>(null);
   const [isRolesModalOpen, setIsRolesModalOpen] = useState(false);
   const [isPromptingPR, setIsPromptingPR] = useState(false);
   const [prUrlInput, setPrUrlInput] = useState('');
   const [isUploadingFile, setIsUploadingFile] = useState(false);
 
+  const handleCopyGitCmd = (cmd: string, label: string) => {
+    navigator.clipboard.writeText(cmd);
+    setCopiedGitCmd(cmd);
+    toast.success('Copied Git Command', {
+      description: label
+    });
+    setTimeout(() => setCopiedGitCmd(null), 2200);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !task) return;
     setIsUploadingFile(true);
-    await uploadTaskAttachment(task.id, file);
-    setIsUploadingFile(false);
-    e.target.value = '';
+    try {
+      await uploadTaskAttachment(task.id, file);
+    } catch (err: any) {
+      toast.error('Upload Error', { description: err.message || 'Could not attach file' });
+    } finally {
+      setIsUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   // Keyboard shortcut: Escape to close, C to claim
@@ -107,15 +133,23 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
   const isClaimedByMe = task.assigneeId === currentMember.id;
   const isUnassigned = !task.assigneeId;
   const isPM = currentMember.role === 'leader';
-  const isDev = currentMember.role === 'developer' || isPM;
-  const isQA = currentMember.role === 'qa' || currentMember.role === 'adviser' || isPM;
+  const canClaim = currentMember.role !== 'adviser' && currentMember.role !== 'coordinator';
+  const isPeerReviewer = currentMember.role === 'qa' || isPM;
+  const isAdviser = currentMember.role === 'adviser';
+  // Someone else owns this ticket — viewer has read-only access
+  const isClaimedByOther = !isUnassigned && !isClaimedByMe && !isPM;
+  // Can perform write actions on this ticket
+  const canAct = isClaimedByMe || isPM;
+  const submissionGate = getTaskSubmissionGate(task);
 
   // Compute status tag string
   let currentStatusTag = '[OPEN]';
-  if (task.status === 'done' || task.closedAt) {
-    currentStatusTag = `[CLOSED]`;
-  } else if (task.status === 'peer_review' || task.status === 'adviser_review') {
-    currentStatusTag = `[PENDING-REVIEW][${task.claimedByUsername || assignee?.name || 'Dev'}]`;
+  if (task.status === 'done') {
+    currentStatusTag = `[ADVISER-APPROVED]`;
+  } else if (task.status === 'peer_review') {
+    currentStatusTag = `[PEER-REVIEW][${task.claimedByUsername || assignee?.name || 'Dev'}]`;
+  } else if (task.status === 'adviser_review') {
+    currentStatusTag = `[ADVISER-REVIEW][${task.peerReviewedByUsername || 'Peer'}]`;
   } else if (task.assigneeId) {
     currentStatusTag = `[CLAIMED][${task.claimedByUsername || assignee?.name || 'Member'}]`;
   }
@@ -125,7 +159,10 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
     if (!task || claimBtnState === 'loading') return;
     setClaimBtnState('loading');
     setTimeout(() => {
-      claimTask(task.id);
+      if (!claimTask(task.id)) {
+        setClaimBtnState('idle');
+        return;
+      }
       setClaimBtnState('success');
       confetti({ particleCount: 65, spread: 60, origin: { y: 0.6 } });
       setTimeout(() => setClaimBtnState('idle'), 1000);
@@ -144,7 +181,10 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
     if (!task || resolveBtnState === 'loading') return;
     setResolveBtnState('loading');
     setTimeout(() => {
-      resolveTask(task.id, prUrlInput.trim() || undefined, 'Submitted with PR link');
+      if (!resolveTask(task.id, prUrlInput.trim() || undefined, 'Submitted with evidence and acceptance criteria')) {
+        setResolveBtnState('idle');
+        return;
+      }
       setResolveBtnState('success');
       setIsPromptingPR(false);
       confetti({ particleCount: 50, spread: 45, origin: { y: 0.6 } });
@@ -157,23 +197,19 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
     if (!task || reviewBtnState === 'loading') return;
     setReviewBtnState('loading');
     setTimeout(() => {
-      reviewTask(task.id, 'Approved & verified by QA / Adviser');
+      const note = task.status === 'peer_review'
+        ? 'Peer verification completed'
+        : 'Faculty adviser approval recorded';
+      if (!reviewTask(task.id, note)) {
+        setReviewBtnState('idle');
+        return;
+      }
       setReviewBtnState('success');
       confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
       setTimeout(() => setReviewBtnState('idle'), 1000);
     }, 320);
   };
 
-  // 5. /closed
-  const handleClose = () => {
-    if (!task || closeBtnState === 'loading') return;
-    setCloseBtnState('loading');
-    setTimeout(() => {
-      closeTask(task.id, 'Closed by user');
-      setCloseBtnState('success');
-      setTimeout(() => setCloseBtnState('idle'), 1000);
-    }, 320);
-  };
 
   const copyPath = (path: string) => {
     navigator.clipboard.writeText(path);
@@ -191,20 +227,24 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
     ? '#fbbf24'
     : 'var(--primary)';
 
-  return (
+  return createPortal(
     <>
-      <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
+      <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div 
           className="modal-content" 
           onClick={e => e.stopPropagation()}
           style={{
             maxWidth: '720px',
+            width: '100%',
+            maxHeight: '90vh',
             padding: 0,
             background: 'var(--bg-elevated)',
             border: '1px solid var(--border-card)',
             borderRadius: 'var(--radius-xl)',
-            boxShadow: '0 30px 80px rgba(0,0,0,0.7)',
-            overflow: 'hidden'
+            boxShadow: 'var(--shadow-xl)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
           }}
         >
           {/* Ticket Header */}
@@ -216,14 +256,15 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
             borderBottom: '1px solid var(--border-subtle)',
             background: 'var(--bg-card)',
             fontFamily: 'var(--font-mono)',
-            fontSize: '0.8rem'
+            fontSize: '0.8rem',
+            flexShrink: 0
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
               <span style={{ 
                 fontWeight: 800, 
                 color: statusColor,
                 letterSpacing: '-0.01em',
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: `${statusColor}18`,
                 padding: '2px 8px',
                 borderRadius: '4px',
                 border: `1px solid ${statusColor}33`
@@ -264,7 +305,49 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
           </div>
 
           {/* Ticket Body */}
-          <div style={{ padding: '22px 24px', maxHeight: '65vh', overflowY: 'auto' }}>
+          <div style={{ padding: '22px 24px', maxHeight: '68vh', overflowY: 'auto' }}>
+            {/* Discord Bot Author Post Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ 
+                width: '36px', 
+                height: '36px', 
+                borderRadius: '50%', 
+                background: 'linear-gradient(135deg, #5865F2, #3c45a5)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: '#fff',
+                boxShadow: '0 2px 8px rgba(88, 101, 242, 0.35)',
+                flexShrink: 0
+              }}>
+                <Bot size={20} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    CapstoneFlow Ticket Bot
+                  </span>
+                  <span style={{ 
+                    fontSize: '0.56rem', 
+                    fontWeight: 800, 
+                    background: '#5865F2', 
+                    color: '#fff', 
+                    padding: '1px 5px', 
+                    borderRadius: '3px',
+                    letterSpacing: '0.04em'
+                  }}>
+                    BOT
+                  </span>
+                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {task.createdAt ? `Created ${task.createdAt}` : '2:08 AM'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Thread: <code style={{ color: '#5865F2', fontSize: '0.7rem' }}>{currentStatusTag}{task.title}</code>
+                </div>
+              </div>
+            </div>
+
             <div style={{
               background: 'var(--bg-card)',
               borderLeft: `4px solid ${statusColor}`,
@@ -279,12 +362,22 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
             }}>
               {/* Title Header */}
               <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
                   {task.title}
                 </h2>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  {task.description || 'No summary description provided.'}
-                </p>
+                
+                {/* Discord-style metadata attributes */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  <span>📁 <strong>Folder:</strong> <code style={{ color: 'var(--primary)', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '3px' }}>{task.folder || task.category}</code></span>
+                  <span><strong>Status:</strong> {isUnassigned ? '🔵 OPEN' : task.status === 'done' ? '🟢 DONE' : `🟠 [CLAIMED][${task.claimedByUsername || assignee?.name || 'Member'}]`}</span>
+                  <span><strong>Created by:</strong> <span style={{ color: 'var(--text-secondary)' }}>{task.createdByUsername || '@lead'}</span></span>
+                </div>
+
+                {task.description && (
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                    {task.description}
+                  </p>
+                )}
               </div>
 
               {/* Problem Section */}
@@ -296,7 +389,7 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                   border: '1px solid var(--border-subtle)'
                 }}>
                   <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
-                    Problem Statement
+                    Problem
                   </div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
                     {task.problemStatement}
@@ -370,7 +463,7 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                       {task.subtasks.map(st => (
                         <div 
                           key={st.id}
-                          onClick={() => toggleSubtask(task.id, st.id)}
+                          onClick={() => canAct && toggleSubtask(task.id, st.id)}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -378,9 +471,11 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                             padding: '6px 10px',
                             borderRadius: 'var(--radius-sm)',
                             background: st.completed ? 'rgba(48, 209, 88, 0.08)' : 'rgba(0,0,0,0.1)',
-                            cursor: 'pointer',
+                            cursor: canAct ? 'pointer' : 'default',
+                            opacity: canAct ? 1 : 0.7,
                             transition: 'background 140ms var(--ease-out)'
                           }}
+                          title={canAct ? undefined : 'Claim this ticket to edit subtasks'}
                         >
                           {st.completed ? (
                             <CheckSquare size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
@@ -412,7 +507,7 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                     {task.acceptanceCriteria.map(criteria => (
                       <div 
                         key={criteria.id}
-                        onClick={() => toggleTaskAcceptanceCriteria(task.id, criteria.id)}
+                        onClick={() => canAct && toggleTaskAcceptanceCriteria(task.id, criteria.id)}
                         style={{
                           display: 'flex',
                           alignItems: 'flex-start',
@@ -420,9 +515,11 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                           padding: '6px 10px',
                           borderRadius: 'var(--radius-sm)',
                           background: criteria.completed ? 'rgba(48, 209, 88, 0.08)' : 'rgba(0,0,0,0.1)',
-                          cursor: 'pointer',
+                          cursor: canAct ? 'pointer' : 'default',
+                          opacity: canAct ? 1 : 0.7,
                           transition: 'background 140ms var(--ease-out)'
                         }}
+                        title={canAct ? undefined : 'Claim this ticket to verify acceptance criteria'}
                       >
                         {criteria.completed ? (
                           <CheckSquare size={14} style={{ color: 'var(--success)', marginTop: '2px', flexShrink: 0 }} />
@@ -442,6 +539,59 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                   </div>
                 </div>
               )}
+
+              <div style={{
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                background: submissionGate.isReady ? 'rgba(48, 209, 88, 0.07)' : 'var(--bg-elevated)',
+                border: `1px solid ${submissionGate.isReady ? 'rgba(48, 209, 88, 0.3)' : 'var(--border-subtle)'}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <Shield size={14} style={{ color: submissionGate.isReady ? 'var(--success)' : 'var(--primary)' }} />
+                    <span>Review Checkpoint</span>
+                  </div>
+                  <span className={`badge ${submissionGate.isReady ? 'badge-success' : 'badge-neutral'}`} style={{ fontSize: '0.6rem' }}>
+                    {submissionGate.isReady ? 'Ready for peer review' : 'Action Required'}
+                  </span>
+                </div>
+
+                {submissionGate.isReady ? (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Acceptance criteria are complete and evidence is attached. Submit this task to peer review when implementation is ready.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {submissionGate.missing.map((req, idx) => {
+                      const isCriteria = req.toLowerCase().includes('acceptance criter');
+                      const isEvidence = req.toLowerCase().includes('evidence') || req.toLowerCase().includes('deliverable');
+                      
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '6px 10px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: isCriteria ? 'rgba(245, 158, 11, 0.08)' : isEvidence ? 'rgba(56, 189, 248, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                            border: `1px solid ${isCriteria ? 'rgba(245, 158, 11, 0.2)' : isEvidence ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          <span className={`badge ${isCriteria ? 'badge-warning' : isEvidence ? 'badge-info' : 'badge-danger'}`} style={{ fontSize: '0.58rem', padding: '1px 5px', fontWeight: 800 }}>
+                            {isCriteria ? 'Criteria' : isEvidence ? 'Evidence' : 'Required'}
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)', flex: 1 }}>
+                            {req}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Related Files */}
               {task.relatedFiles && task.relatedFiles.length > 0 && (
@@ -517,6 +667,170 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                 </div>
               )}
 
+              {/* Discord Ticket Link */}
+              {task.discordTicket && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: task.discordTicket.syncStatus === 'synced'
+                    ? 'rgba(88, 101, 242, 0.08)'
+                    : 'var(--bg-elevated)',
+                  border: `1px solid ${task.discordTicket.syncStatus === 'synced' ? 'rgba(88, 101, 242, 0.28)' : 'var(--border-subtle)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                      <Bot size={15} style={{ color: '#5865F2' }} />
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                        Discord Ticket
+                      </span>
+                      <span className={`badge ${task.discordTicket.syncStatus === 'synced' ? 'badge-success' : task.discordTicket.syncStatus === 'error' ? 'badge-danger' : 'badge-neutral'}`} style={{ fontSize: '0.58rem' }}>
+                        {task.discordTicket.syncStatus === 'synced' ? 'SYNCED' : task.discordTicket.syncStatus.toUpperCase()}
+                      </span>
+                    </div>
+                    {task.discordTicket.lastError && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '4px' }}>
+                        {task.discordTicket.lastError}
+                      </div>
+                    )}
+                  </div>
+                  {task.discordTicket.syncStatus === 'synced' && task.discordTicket.channelUrl ? (
+                    <a
+                      href={task.discordTicket.channelUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.72rem', height: '24px', gap: '4px', color: '#5865F2', flexShrink: 0 }}
+                    >
+                      <span>Open Ticket</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void retryDiscordTicket(task.id)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.72rem', height: '24px', color: '#5865F2', flexShrink: 0 }}
+                    >
+                      Retry link
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Conventional Git Commit & Branch Terminal Linking */}
+              {(() => {
+                const sanitizedTitle = task.title.toLowerCase().replace(/[^a-z0-9\s-_]/g, '').trim();
+                const commitCategory = task.category === 'code' ? 'feat' : task.category || 'feat';
+                const suggestedCommitMsg = `git commit -m "${commitCategory}(${task.category || 'core'}): #${task.id} ${sanitizedTitle.slice(0, 50)}"`;
+                const slugBranch = sanitizedTitle.replace(/\s+/g, '-').slice(0, 26);
+                const suggestedBranchCmd = `git checkout -b feature/${task.id}-${slugBranch}`;
+
+                return (
+                  <div style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-card)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <Terminal size={13} style={{ color: 'var(--primary)' }} />
+                        <span>Conventional Git Linking</span>
+                      </div>
+                      <span style={{
+                        fontSize: '0.62rem',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-card)',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        LINKED TO #{task.id.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* 1. Branch Checkout Snippet (Goes First) */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-card)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '8px 10px',
+                      gap: '8px'
+                    }}>
+                      <code style={{ fontSize: '0.74rem', color: 'var(--primary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                        {suggestedBranchCmd}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyGitCmd(suggestedBranchCmd, 'Branch checkout command copied!')}
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '2px 8px', height: '24px', fontSize: '0.7rem', gap: '4px', flexShrink: 0 }}
+                        title="Copy Branch Checkout Command"
+                      >
+                        {copiedGitCmd === suggestedBranchCmd ? (
+                          <>
+                            <Check size={12} style={{ color: 'var(--success)' }} />
+                            <span style={{ color: 'var(--success)' }}>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* 2. Commit Snippet (Goes Second) */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-card)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '8px 10px',
+                      gap: '8px'
+                    }}>
+                      <code style={{ fontSize: '0.74rem', color: 'var(--secondary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                        {suggestedCommitMsg}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyGitCmd(suggestedCommitMsg, 'Conventional commit command copied!')}
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '2px 8px', height: '24px', fontSize: '0.7rem', gap: '4px', flexShrink: 0 }}
+                        title="Copy Git Commit Command"
+                      >
+                        {copiedGitCmd === suggestedCommitMsg ? (
+                          <>
+                            <Check size={12} style={{ color: 'var(--success)' }} />
+                            <span style={{ color: 'var(--success)' }}>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* File Attachments & Evidence */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -524,25 +838,30 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                     <Paperclip size={14} style={{ color: 'var(--primary)' }} />
                     <span>Attachments & Evidence ({task.attachments?.length || 0})</span>
                   </div>
-                  <label 
-                    className="btn btn-ghost btn-sm"
-                    style={{ 
-                      fontSize: '0.72rem', 
-                      height: '24px', 
-                      gap: '4px', 
-                      cursor: isUploadingFile ? 'not-allowed' : 'pointer',
-                      padding: '2px 8px'
-                    }}
-                  >
-                    <UploadCloud size={12} />
-                    <span>{isUploadingFile ? 'Uploading...' : 'Upload File'}</span>
+                  <div>
                     <input 
+                      ref={fileInputRef}
                       type="file" 
                       onChange={handleFileUpload} 
                       disabled={isUploadingFile} 
                       style={{ display: 'none' }} 
                     />
-                  </label>
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn btn-ghost btn-sm"
+                      disabled={isUploadingFile}
+                      style={{ 
+                        fontSize: '0.72rem', 
+                        height: '24px', 
+                        gap: '4px', 
+                        padding: '2px 8px'
+                      }}
+                    >
+                      <UploadCloud size={12} className={isUploadingFile ? 'animate-bounce' : ''} />
+                      <span>{isUploadingFile ? 'Uploading...' : 'Upload File'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {task.attachments && task.attachments.length > 0 ? (
@@ -614,12 +933,12 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                 ) : (
                   <div style={{ 
                     fontSize: '0.72rem', 
-                    color: 'var(--text-muted)', 
+                    color: 'var(--text-secondary)', 
                     fontStyle: 'italic',
                     background: 'var(--bg-elevated)',
-                    padding: '8px 12px',
+                    padding: '10px 14px',
                     borderRadius: 'var(--radius-sm)',
-                    border: '1px dashed var(--border-subtle)'
+                    border: '1px dashed var(--border-card)'
                   }}>
                     No files attached. Click "Upload File" to add screenshots, diagrams, or PDF approval sheets.
                   </div>
@@ -719,7 +1038,7 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
               </div>
             )}
 
-            {/* Inline Spring PR Drawer for /resolved */}
+            {/* Evidence submission drawer */}
             {isPromptingPR && (
               <form 
                 onSubmit={handleResolveSubmit} 
@@ -738,13 +1057,13 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <GitPullRequest size={15} style={{ color: 'var(--primary)' }} />
-                    <span>Submit for Review (<code>/resolved</code>)</span>
+                    <span>Submit for Peer Review</span>
                   </div>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>pr_url</span>
                 </div>
 
                 <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                  Provide your GitHub Pull Request URL or deliverable document link to transition this ticket to <strong>[PENDING-REVIEW]</strong>:
+                  Attach a file above or provide a GitHub Pull Request / deliverable link. All acceptance criteria must be complete before the task enters <strong>[PEER-REVIEW]</strong>.
                 </div>
 
                 <input 
@@ -754,7 +1073,6 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                   onChange={e => setPrUrlInput(e.target.value)}
                   className="input-field"
                   autoFocus
-                  required
                 />
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -773,14 +1091,14 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
                     loadingText="Submitting..."
                     successText="Submitted!"
                   >
-                    🚀 Mark PENDING-REVIEW
+                    Submit for peer review
                   </MorphButton>
                 </div>
               </form>
             )}
           </div>
 
-          {/* Emil Kowalski 5-Action Tactile Button Bar */}
+          {/* Action Button Bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -791,78 +1109,96 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
             flexWrap: 'wrap',
             gap: '10px'
           }}>
-            {/* The 5 Screenshot Actions Styled with Emil's Touch */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              
-              {/* 1. /claim */}
+
+              {/* Read-only banner — visible only to non-claimers viewing a claimed ticket */}
+              {isClaimedByOther && task.status !== 'done' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 11px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(251, 191, 36, 0.08)',
+                  border: '1px solid rgba(251, 191, 36, 0.25)',
+                  fontSize: '0.74rem',
+                  color: '#fbbf24',
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  <Lock size={12} />
+                  <span>Claimed by {assignee?.name || task.claimedByUsername} — read only</span>
+                </div>
+              )}
+
+              {/* 1. /claim — only if unassigned */}
               {isUnassigned && (
                 <MorphButton
                   state={claimBtnState}
                   onClick={handleClaim}
-                  disabled={!isDev}
+                  disabled={!canClaim}
                   variant="primary"
                   size="sm"
                   loadingText="Claiming..."
                   successText="Claimed!"
                 >
-                  ⚡ Claim Ticket (/claim)
+                  Claim task
                 </MorphButton>
               )}
 
-              {/* 2. /unclaim */}
+              {/* 2. /unclaim — only the claimer or PM */}
               {(isClaimedByMe || (isPM && task.assigneeId)) && task.status !== 'done' && (
                 <button
                   type="button"
                   onClick={handleUnclaim}
                   className="btn btn-secondary btn-sm"
                   style={{ height: '30px', fontSize: '0.76rem', gap: '5px' }}
-                  title="Unclaim a ticket back to open pool (Developer only)"
+                  title="Release ticket back to open pool"
                 >
                   <UserMinus size={13} style={{ color: 'var(--text-muted)' }} />
                   <span>Unclaim (/unclaim)</span>
                 </button>
               )}
 
-              {/* 3. /resolved */}
-              {(isClaimedByMe || isPM) && task.status !== 'done' && task.status !== 'peer_review' && (
+              {/* Submit only an active owned task into peer review. */}
+              {canAct && task.status === 'in_progress' && task.assigneeId && (
                 <button
                   type="button"
                   onClick={() => setIsPromptingPR(prev => !prev)}
                   className={`btn ${isPromptingPR ? 'btn-primary' : 'btn-secondary'} btn-sm`}
                   style={{ height: '30px', fontSize: '0.76rem', gap: '5px', color: isPromptingPR ? '#fff' : '#fbbf24' }}
-                  title="Mark a ticket as PENDING-REVIEW with PR link (Developer only)"
+                  title="Submit completed criteria and evidence for peer review"
                 >
                   <GitPullRequest size={13} />
-                  <span>Submit for Review (/resolved)</span>
+                  <span>Submit for peer review</span>
                 </button>
               )}
 
-              {/* 4. /reviewed */}
-              {(task.status === 'peer_review' || task.status === 'adviser_review') && (
+              {task.status === 'peer_review' && (
                 <MorphButton
                   state={reviewBtnState}
                   onClick={handleReview}
-                  disabled={!isQA}
+                  disabled={!isPeerReviewer || isClaimedByMe}
                   variant="success"
                   size="sm"
-                  loadingText="Approving..."
-                  successText="Approved!"
+                  loadingText="Verifying..."
+                  successText="Peer reviewed!"
                 >
-                  ✅ Approve Deliverable (/reviewed)
+                  Complete peer review
                 </MorphButton>
               )}
 
-              {/* 5. /closed */}
-              {(isPM || isClaimedByMe || isQA) && task.status !== 'done' && (
+              {task.status === 'adviser_review' && (
                 <MorphButton
-                  state={closeBtnState}
-                  onClick={handleClose}
-                  variant="ghost"
+                  state={reviewBtnState}
+                  onClick={handleReview}
+                  disabled={!isAdviser && !isPM}
+                  variant="success"
                   size="sm"
-                  loadingText="Closing..."
-                  successText="Closed!"
+                  loadingText="Approving..."
+                  successText="Adviser approved!"
                 >
-                  🔒 Close Ticket (/closed)
+                  {isAdviser ? 'Record adviser approval' : 'Verify adviser consultation'}
                 </MorphButton>
               )}
             </div>
@@ -886,6 +1222,7 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
         isOpen={isRolesModalOpen}
         onClose={() => setIsRolesModalOpen(false)}
       />
-    </>
+    </>,
+    document.body
   );
 };

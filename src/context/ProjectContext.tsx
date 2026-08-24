@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   CapstoneProject,
@@ -17,12 +17,15 @@ import {
   GitHubCommit,
   GitHubPullRequest,
   TicketEvent,
-  TaskAttachment
+  TaskAttachment,
+  OnlinePresenceUser,
+  NewProjectPayload
 } from '../types';
 import {
   initialProject,
   initialMembers,
   initialTasks,
+  templateCapstoneTickets,
   initialPhases,
   initialChapters,
   initialRevisions,
@@ -31,10 +34,22 @@ import {
   initialCommits,
   initialPullRequests
 } from '../data/initialData';
+import { createNewProjectInstance, cleanProjectTitle } from '../lib/projectGenerator';
+import {
+  computeOverallReadiness,
+  computePhaseProgress,
+  getTaskProgressPercent
+} from '../lib/domain/progress';
+import { createDiscordTicket, isDiscordTicketSyncEnabled, syncDiscordTicketStatus } from '../lib/discordTickets';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { realtimeHub } from '../lib/realtimeHub';
 import {
   fetchAllDataFromSupabase,
+  fetchMembershipProjectsFromSupabase,
+  fetchProjectByInviteCode,
+  joinCloudProject,
   seedSupabaseDatabase,
+  clearAndSeedSupabaseDatabase,
   syncTaskToSupabase,
   deleteTaskFromSupabase,
   syncDeliverableToSupabase,
@@ -43,17 +58,22 @@ import {
   deletePhaseFromSupabase,
   syncStandupToSupabase,
   syncRevisionToSupabase,
-  deleteRevisionFromSupabase
+  deleteRevisionFromSupabase,
+  syncMemberToSupabase,
+  deleteMemberFromSupabase,
+  syncProjectToSupabase,
+  deleteProjectFromSupabase,
+  syncChapterToSupabase
 } from '../lib/supabaseSync';
 import { parseGitHubRepoUrl, syncRepositoryData, DEFAULT_GITHUB_REPO_URL } from '../lib/github';
+import { getPhaseSignOffGate, getTaskSubmissionGate } from '../lib/workflow';
+import { showSubmissionGateToast } from '../lib/workflowToasts';
 import { 
-  notifyDiscordTaskClaimed, 
-  notifyDiscordTaskResolved, 
-  notifyDiscordTaskReviewed, 
   notifyDiscordStandup, 
   notifyDiscordMilestone 
 } from '../lib/discord';
 import { uploadAttachmentFile, deleteAttachmentFile } from '../lib/supabaseStorage';
+import { verifyInviteToken, InviteTokenPayload } from '../lib/tokenSecurity';
 
 interface ProjectContextType {
   project: CapstoneProject;
@@ -72,17 +92,26 @@ interface ProjectContextType {
   
   // Database & Cloud Sync
   isDatabaseConnected: boolean;
+  isWorkspaceLoading: boolean;
   syncToSupabase: () => Promise<boolean>;
 
-  // GitHub Integration States
+  // GitHub Integration States & Real-Time Auto-Tracker
   githubUser: GitHubUser | null;
   githubCommits: GitHubCommit[];
   githubPRs: GitHubPullRequest[];
   isGitHubConnected: boolean;
+  isAutoTracking: boolean;
+  isSyncingGitHub: boolean;
+  lastGitHubSyncTime: Date | null;
+  toggleAutoTracking: (enabled?: boolean) => void;
+
+  // Live Online Presence
+  onlineUsers: OnlinePresenceUser[];
+  isMemberOnline: (memberId: string) => boolean;
 
   setSearchQuery: (query: string) => void;
   setFilterCategory: (category: string) => void;
-  toggleTheme: () => void;
+  toggleTheme: (event?: React.MouseEvent | MouseEvent) => void;
   switchMember: (memberId: string) => void;
   switchRole: (role: Role) => void;
   
@@ -95,7 +124,7 @@ interface ProjectContextType {
   loginWithGitHub: (username: string, token?: string) => Promise<boolean>;
   logoutGitHub: () => void;
   setGitHubRepo: (repoUrl: string) => void;
-  syncGitHubData: (targetUrl?: string) => Promise<boolean>;
+  syncGitHubData: (targetUrl?: string, options?: { silent?: boolean }) => Promise<boolean>;
 
   // Permission Checks
   isOwner: boolean;
@@ -113,17 +142,19 @@ interface ProjectContextType {
 
   // Task & Ticket Actions
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => void;
+  retryDiscordTicket: (taskId: string) => Promise<boolean>;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
-  claimTask: (taskId: string) => void;
-  releaseTask: (taskId: string) => void;
-  resolveTask: (taskId: string, prUrl?: string, note?: string) => void;
-  reviewTask: (taskId: string, note?: string) => void;
-  closeTask: (taskId: string, reason?: string) => void;
+  claimTask: (taskId: string) => boolean;
+  releaseTask: (taskId: string) => boolean;
+  resolveTask: (taskId: string, prUrl?: string, note?: string) => boolean;
+  reviewTask: (taskId: string, note?: string) => boolean;
+  approveTaskAdviserReview: (taskId: string, consultationNotes?: string) => boolean;
+  closeTask: (taskId: string, reason?: string) => boolean;
   loadTemplateTickets: () => void;
   rebuildDatabase: () => void;
   toggleTaskAcceptanceCriteria: (taskId: string, criteriaId: string) => void;
-  moveTaskStatus: (taskId: string, newStatus: TaskStatus) => void;
+  moveTaskStatus: (taskId: string, newStatus: TaskStatus) => boolean;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
   
   // Attachments & Deliverables Proofs
@@ -136,7 +167,7 @@ interface ProjectContextType {
 
   // Milestone Actions
   toggleDeliverable: (phaseId: number, deliverableId: string) => void;
-  signOffPhase: (phaseId: number) => void;
+  signOffPhase: (phaseId: number, consultationDetails?: { consultationNotes?: string; proofUrl?: string; consultationDate?: string; adviserName?: string }) => void;
   changeCurrentPhase: (phaseId: number) => void;
   updatePhaseDetails: (phaseId: number, updates: Partial<MilestonePhase>) => void;
   addPhase: (phaseData: { title: string; description: string; targetDate: string; keyDeliverables?: { title: string; requiredForDefense: boolean }[] }) => void;
@@ -158,7 +189,16 @@ interface ProjectContextType {
   // Standup Actions
   addStandup: (entry: Omit<StandupEntry, 'id' | 'date'>) => void;
   
-  // Project Settings
+  // Project Settings & Multi-Project Engine
+  projects: CapstoneProject[];
+  activeProjectId: string;
+  createProject: (payload: NewProjectPayload) => Promise<CapstoneProject>;
+  joinProjectByInvite: (inviteCodeOrId: string, role?: Role, permission?: 'owner' | 'editor' | 'member' | 'adviser' | 'viewer', explicitTokenPayload?: InviteTokenPayload) => Promise<boolean>;
+  switchProject: (projectId: string) => void;
+  deleteProject: (projectId: string) => void;
+  pauseProject: (projectId: string) => void;
+  resumeProject: (projectId: string) => void;
+  regenerateProjectKey: (projectId: string, keyType: 'anon' | 'service_role') => void;
   updateProjectInfo: (updates: Partial<CapstoneProject>) => void;
   resetData: () => void;
   exportDataJSON: () => string;
@@ -168,20 +208,130 @@ interface ProjectContextType {
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'capstoneflow_state_v10';
+const PROJECTS_REGISTRY_KEY = 'capstoneflow_projects_registry_v1';
+const ACTIVE_PROJ_KEY = 'capstoneflow_active_project_id';
+const REGISTRY_LEGACY_CLAIMED_KEY = 'capstoneflow_registry_legacy_claimed';
+const DEMO_MODE_KEY = `${LOCAL_STORAGE_KEY}_demo_mode`;
+const DEMO_MEMBER_ID = 'm_lead';
+
+// Cache scoping: registries are per-account so a second signup on the same
+// browser never inherits the first account's projects.
+const getIdentityKey = (): string => {
+  try {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_user`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed?.login) return `gh_${String(parsed.login).toLowerCase()}`;
+    }
+  } catch {}
+  if (localStorage.getItem(DEMO_MODE_KEY) === 'true') return 'demo';
+  return 'guest';
+};
+
+const registryKeyFor = (identity: string): string => `${PROJECTS_REGISTRY_KEY}__${identity}`;
+const activeProjectKeyFor = (identity: string): string => `${ACTIVE_PROJ_KEY}__${identity}`;
+
+const makeStarterProject = (): CapstoneProject => ({
+  ...initialProject,
+  id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+  title: 'My Capstone Project',
+  subtitle: 'Set up your milestone roadmap and invite your team to begin.',
+  organization: '',
+  region: '',
+  status: 'active',
+  userRole: 'owner',
+  isOwner: true,
+  memberCount: 1,
+  inviteCode: `CF-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+  createdAt: new Date().toISOString()
+});
+
+const sanitizeProject = (p: CapstoneProject): CapstoneProject => ({
+  ...p,
+  title: cleanProjectTitle(p.title) || p.title
+});
+
+const loadRegistryForIdentity = (): CapstoneProject[] => {
+  const identity = getIdentityKey();
+  const scoped = localStorage.getItem(registryKeyFor(identity));
+  if (scoped) {
+    try {
+      const parsed = JSON.parse(scoped);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(sanitizeProject);
+    } catch {}
+  }
+
+  // One-time legacy adoption: the first account on this browser claims the old
+  // global registry. Every later account starts from a clean blank workspace.
+  if (localStorage.getItem(REGISTRY_LEGACY_CLAIMED_KEY) !== 'true') {
+    const legacy = localStorage.getItem(PROJECTS_REGISTRY_KEY);
+    localStorage.setItem(REGISTRY_LEGACY_CLAIMED_KEY, 'true');
+    if (legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sanitized = parsed.map(sanitizeProject);
+          localStorage.setItem(registryKeyFor(identity), JSON.stringify(sanitized));
+          return sanitized;
+        }
+      } catch {}
+    }
+  }
+
+  const starter = makeStarterProject();
+  localStorage.setItem(registryKeyFor(identity), JSON.stringify([starter]));
+  return [starter];
+};
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [project, setProject] = useState<CapstoneProject>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_project`);
-    return saved ? JSON.parse(saved) : initialProject;
+  // Multi-Project Registry Initialization (scoped to the signed-in account)
+  const [projects, setProjects] = useState<CapstoneProject[]>(loadRegistryForIdentity);
+
+  const [activeProjectId, setActiveProjectId] = useState<string>(() => {
+    const identity = getIdentityKey();
+    const saved = localStorage.getItem(activeProjectKeyFor(identity));
+    if (saved && projects.some(p => p.id === saved)) return saved;
+    return projects[0]?.id || '';
   });
 
+  const activeProjectIdRef = useRef<string>(activeProjectId);
+
+  useEffect(() => {
+    activeProjectIdRef.current = activeProjectId;
+  }, [activeProjectId]);
+
+  const activeProjectObj = projects.find(p => p.id === activeProjectId) || projects[0] || initialProject;
+
+  const [project, setProject] = useState<CapstoneProject>(activeProjectObj);
+
+  // Keep single active project state in sync with projects list
+  useEffect(() => {
+    const found = projects.find(p => p.id === activeProjectId) || projects[0];
+    if (found) {
+      setProject(found);
+    }
+  }, [activeProjectId, projects]);
+
+  useEffect(() => {
+    localStorage.setItem(registryKeyFor(getIdentityKey()), JSON.stringify(projects));
+    if (isSupabaseConfigured() && projects.length > 0) {
+      projects.forEach(p => {
+        void syncProjectToSupabase(p);
+      });
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    localStorage.setItem(activeProjectKeyFor(getIdentityKey()), activeProjectId);
+  }, [activeProjectId]);
+
   const [members, setMembers] = useState<TeamMember[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_members`);
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_members`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_members`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((m: TeamMember) => {
+          const list = parsed.map((m: TeamMember) => {
             if (m.githubUsername) {
               const isUnsplash = m.avatar && m.avatar.includes('unsplash.com');
               return {
@@ -191,6 +341,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             return m;
           });
+          const hasOwner = list.some((m: TeamMember) => m.permissionLevel === 'owner' || m.id === 'usr_owner_main');
+          if (!hasOwner) {
+            return [initialMembers[0], ...list];
+          }
+          return list;
         }
       } catch (e) {
         // fallback
@@ -200,11 +355,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_tasks`);
-    if (saved) {
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_tasks`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_tasks`);
+    if (saved !== null) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {
         // fallback
       }
@@ -213,27 +368,27 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   const [phases, setPhases] = useState<MilestonePhase[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_phases`);
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_phases`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_phases`);
     return saved ? JSON.parse(saved) : initialPhases;
   });
 
   const [chapters, setChapters] = useState<ManuscriptChapter[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_chapters`);
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_chapters`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_chapters`);
     return saved ? JSON.parse(saved) : initialChapters;
   });
 
   const [revisions, setRevisions] = useState<RevisionItem[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_revisions`);
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_revisions`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_revisions`);
     return saved ? JSON.parse(saved) : initialRevisions;
   });
 
   const [standups, setStandups] = useState<StandupEntry[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_standups`);
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_standups`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_standups`);
     return saved ? JSON.parse(saved) : initialStandups;
   });
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_activity`);
+    const saved = localStorage.getItem(`capstoneflow_proj_${activeProjectId}_activity`) || localStorage.getItem(`${LOCAL_STORAGE_KEY}_activity`);
     if (saved) {
       try {
         const parsed: ActivityLog[] = JSON.parse(saved);
@@ -257,19 +412,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // GitHub State
   const [githubUser, setGithubUser] = useState<GitHubUser | null>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_user`);
-    if (saved) return JSON.parse(saved);
-    const m = initialMembers.find(member => member.id === 'm1');
-    if (m && m.githubUsername) {
-      return {
-        id: m.githubUsername,
-        login: m.githubUsername,
-        name: m.name,
-        avatar_url: m.avatar || `https://github.com/${m.githubUsername}.png`,
-        email: m.email,
-        bio: m.roleTitle,
-        html_url: `https://github.com/${m.githubUsername}`,
-        connectedAt: new Date().toISOString().split('T')[0]
-      };
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
     }
     return null;
   });
@@ -284,67 +432,317 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return saved ? JSON.parse(saved) : initialPullRequests;
   });
 
+  // Real-Time GitHub Auto-Tracking Telemetry States
+  const [isAutoTracking, setIsAutoTracking] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_auto_track_git`);
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [isSyncingGitHub, setIsSyncingGitHub] = useState<boolean>(false);
+  const [lastGitHubSyncTime, setLastGitHubSyncTime] = useState<Date | null>(null);
+
+  const toggleAutoTracking = (enabled?: boolean) => {
+    setIsAutoTracking(prev => {
+      const nextVal = enabled !== undefined ? enabled : !prev;
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_auto_track_git`, String(nextVal));
+      if (nextVal) {
+        toast.success('GitHub Live Tracker Active', {
+          description: 'Background scanning enabled. Remote commits & PRs will automatically sync.'
+        });
+      } else {
+        toast.info('GitHub Auto-Tracking Paused', {
+          description: 'Automatic background repo scan temporarily paused.'
+        });
+      }
+      return nextVal;
+    });
+  };
+
   const [currentMemberId, setCurrentMemberId] = useState<string>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_current_user`);
-    return saved || 'm1';
+    if (saved) return saved;
+    const savedUser = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_user`);
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed.login) return `usr_github_${parsed.login.toLowerCase()}`;
+      } catch {}
+    }
+    return initialMembers[0]?.id || 'usr_owner_main';
   });
 
+  const [_isDemoMode, setIsDemoMode] = useState<boolean>(() => localStorage.getItem(DEMO_MODE_KEY) === 'true');
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem(`${LOCAL_STORAGE_KEY}_auth`) === 'true';
+    const savedAuth = localStorage.getItem(`${LOCAL_STORAGE_KEY}_auth`);
+    const savedUser = localStorage.getItem(`${LOCAL_STORAGE_KEY}_github_user`);
+    const demoMode = localStorage.getItem(DEMO_MODE_KEY) === 'true';
+    return savedAuth === 'true' && (Boolean(savedUser) || demoMode);
   });
 
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_theme`);
-    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_theme`) || localStorage.getItem('capstoneflow_theme');
+    return (saved === 'dark' || saved === 'light') ? saved : 'dark';
   });
+
+  // Synchronize Theme with DOM & localStorage (Zero-Flicker)
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    root.style.colorScheme = theme;
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_theme`, theme);
+    localStorage.setItem('capstoneflow_theme', theme);
+  }, [theme]);
+
+  // Swap the workspace cache when the signed-in identity changes
+  // (login, logout, or account switch). Each account only ever sees
+  // its own scoped project registry.
+  const identityRef = useRef<string>(getIdentityKey());
+  useEffect(() => {
+    const identity = getIdentityKey();
+    if (identity === identityRef.current) return;
+    identityRef.current = identity;
+
+    const nextProjects = loadRegistryForIdentity();
+    setProjects(nextProjects);
+
+    const savedActive = localStorage.getItem(activeProjectKeyFor(identity));
+    const nextActive = nextProjects.find(p => p.id === savedActive)?.id || nextProjects[0]?.id || '';
+    if (nextActive) setActiveProjectId(nextActive);
+  }, [githubUser, _isDemoMode]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [isDatabaseConnected, setIsDatabaseConnected] = useState<boolean>(() => isSupabaseConfigured());
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState<boolean>(() => isSupabaseConfigured());
+  const [onlineUsers, setOnlineUsers] = useState<OnlinePresenceUser[]>([]);
 
-  // Supabase Initial Hydration & Real-Time Sync
+  // Supabase Initial Hydration & Granular Real-Time Sync with Presence
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
+    if (!isSupabaseConfigured()) {
+      setIsWorkspaceLoading(false);
+      return;
+    }
 
     let isMounted = true;
-    fetchAllDataFromSupabase().then(data => {
-      if (!isMounted || !data) return;
-      if (data.project) setProject(data.project);
-      if (data.members && data.members.length > 0) setMembers(data.members);
-      if (data.phases && data.phases.length > 0) setPhases(data.phases);
-      if (data.tasks) setTasks(data.tasks);
-      if (data.standups) setStandups(data.standups);
-      if (data.revisions) setRevisions(data.revisions);
-      if (data.activityLogs && data.activityLogs.length > 0) setActivityLogs(data.activityLogs);
-      setIsDatabaseConnected(true);
-      toast.success('Connected to Supabase', {
-        description: 'PostgreSQL Real-Time Database active'
+    setIsWorkspaceLoading(true);
+
+    // Discover only projects this account is a roster member of
+    fetchMembershipProjectsFromSupabase(githubUser?.login, githubUser?.email).then(cloudProjects => {
+      if (!isMounted || !cloudProjects || cloudProjects.length === 0) return;
+      setProjects(prev => {
+        const map = new Map<string, CapstoneProject>();
+        prev.forEach(p => map.set(p.id, p));
+        cloudProjects.forEach(cp => {
+          const existing = map.get(cp.id);
+          map.set(cp.id, existing ? { ...existing, ...cp } : cp);
+        });
+        const merged = Array.from(map.values());
+        try {
+          localStorage.setItem(registryKeyFor(getIdentityKey()), JSON.stringify(merged));
+        } catch {}
+        return merged;
       });
+    }).catch(err => console.warn('[Supabase] Project discovery notice:', err));
+
+    fetchAllDataFromSupabase(activeProjectIdRef.current).then(async data => {
+      if (!isMounted) return;
+
+      // Roster gate: a cloud project may only be adopted by accounts on its
+      // team_members roster. Prevents cross-account leaks while RLS is open.
+      // (joinCloudProject inserts the roster row BEFORE hydration runs, so
+      // legitimately invited accounts pass.)
+      const identityLogin = githubUser?.login?.toLowerCase();
+      const isDemoIdentity = getIdentityKey() === 'demo';
+      if (data?.project && data.members && data.members.length > 0 && identityLogin && !isDemoIdentity) {
+        const onRoster = data.members.some(member => {
+          const memberLogin = member.githubUsername?.toLowerCase();
+          const memberEmail = member.email?.toLowerCase();
+          return (
+            (memberLogin && memberLogin === identityLogin) ||
+            (memberEmail && githubUser?.email && memberEmail === githubUser.email.toLowerCase())
+          );
+        });
+        if (!onRoster) {
+          console.warn('[security] Hydration blocked: current account is not a member of this project.');
+          setIsDatabaseConnected(true);
+          return;
+        }
+      }
+
+      if (data && data.project && data.project.id === activeProjectIdRef.current) {
+        setProject(data.project);
+        if (data.members && data.members.length > 0) setMembers(data.members);
+        if (data.phases && data.phases.length > 0) setPhases(data.phases);
+        if (data.tasks && data.tasks.length > 0) setTasks(data.tasks);
+        if (data.standups && data.standups.length > 0) setStandups(data.standups);
+        if (data.revisions && data.revisions.length > 0) setRevisions(data.revisions);
+        if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
+        if (data.activityLogs && data.activityLogs.length > 0) setActivityLogs(data.activityLogs);
+      } else if (!data || data.project === undefined) {
+        // Connected to Supabase, but this workspace has no cloud record yet:
+        // auto-seed from local state so it is live in Supabase.
+        await seedSupabaseDatabase({
+          project,
+          members,
+          phases,
+          tasks,
+          standups,
+          revisions,
+          chapters
+        });
+      }
+      setIsDatabaseConnected(true);
+    }).catch(err => {
+      console.warn('Supabase hydration check failed:', err);
+      if (isMounted) setIsDatabaseConnected(isSupabaseConfigured());
+    }).finally(() => {
+      if (isMounted) setIsWorkspaceLoading(false);
     });
 
-    if (supabase) {
-      const channel = supabase
-        .channel('capstone_live_sync')
-        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-          fetchAllDataFromSupabase().then(data => {
-            if (!isMounted || !data) return;
-            if (data.project) setProject(data.project);
-            if (data.members && data.members.length > 0) setMembers(data.members);
-            if (data.phases && data.phases.length > 0) setPhases(data.phases);
-            if (data.tasks) setTasks(data.tasks);
-            if (data.standups) setStandups(data.standups);
-            if (data.revisions) setRevisions(data.revisions);
-          });
-        })
-        .subscribe();
+    let refreshTimer: number | undefined;
+    let refreshInFlight = false;
+    let refreshQueued = false;
 
-      return () => {
-        isMounted = false;
-        if (supabase) {
-          supabase.removeChannel(channel);
+    const refreshWorkspace = async () => {
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+      }
+      refreshInFlight = true;
+      try {
+        const data = await fetchAllDataFromSupabase(activeProjectIdRef.current);
+        if (!isMounted || !data || !data.project) return;
+        // Prevent cross-project pollution from previous projects.
+        if (data.project.id === activeProjectIdRef.current) {
+          setProject(data.project);
+          if (data.members && data.members.length > 0) setMembers(data.members);
+          if (data.phases) setPhases(data.phases);
+          if (data.tasks) setTasks(data.tasks);
+          if (data.standups) setStandups(data.standups);
+          if (data.revisions) setRevisions(data.revisions);
+          if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
         }
-      };
-    }
-  }, []);
+      } finally {
+        refreshInFlight = false;
+        if (refreshQueued) {
+          refreshQueued = false;
+          scheduleWorkspaceRefresh();
+        }
+      }
+    };
+
+    const scheduleWorkspaceRefresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void refreshWorkspace(), 250);
+    };
+
+    const currentMemberObj = members.find(m => m.id === currentMemberId);
+    const currentUserPresence = currentMemberObj ? {
+      memberId: currentMemberObj.id,
+      name: currentMemberObj.name,
+      avatar: currentMemberObj.avatar || `https://github.com/${currentMemberObj.githubUsername || 'ghost'}.png`,
+      githubUsername: githubUser?.login || currentMemberObj.githubUsername,
+      roleTitle: currentMemberObj.roleTitle
+    } : null;
+
+    const unsubscribeHub = realtimeHub.subscribe({
+      projectId: activeProjectIdRef.current,
+      currentUser: currentUserPresence,
+      onTaskChange: (eventType, taskOrId) => {
+        if (!isMounted) return;
+        if (eventType === 'DELETE') {
+          setTasks(prev => prev.filter(t => t.id !== taskOrId.id));
+        } else {
+          const updatedTask = taskOrId as Task;
+          setTasks(prev => {
+            const index = prev.findIndex(t => t.id === updatedTask.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = {
+                ...updatedTask,
+                subtasks: (updatedTask.subtasks && updatedTask.subtasks.length > 0)
+                  ? updatedTask.subtasks
+                  : prev[index].subtasks || []
+              };
+              return updated;
+            }
+            return [updatedTask, ...prev];
+          });
+        }
+      },
+      onSubtaskChange: (eventType, subtaskOrId) => {
+        if (!isMounted) return;
+        setTasks(prev => prev.map(task => {
+          if (eventType === 'DELETE') {
+            if (subtaskOrId.taskId && task.id !== subtaskOrId.taskId) return task;
+            return {
+              ...task,
+              subtasks: (task.subtasks || []).filter(st => st.id !== subtaskOrId.id)
+            };
+          } else {
+            const st = subtaskOrId as { id: string; taskId: string; title: string; completed: boolean };
+            if (task.id !== st.taskId) return task;
+            const existing = task.subtasks || [];
+            const idx = existing.findIndex(item => item.id === st.id);
+            const updatedSubtasks = idx >= 0
+              ? existing.map(item => item.id === st.id ? { id: st.id, title: st.title, completed: st.completed } : item)
+              : [...existing, { id: st.id, title: st.title, completed: st.completed }];
+            return {
+              ...task,
+              subtasks: updatedSubtasks
+            };
+          }
+        }));
+      },
+      onStandupChange: (eventType, standupOrId) => {
+        if (!isMounted) return;
+        if (eventType === 'DELETE') {
+          setStandups(prev => prev.filter(s => s.id !== standupOrId.id));
+        } else {
+          const updatedStandup = standupOrId as StandupEntry;
+          setStandups(prev => {
+            const index = prev.findIndex(s => s.id === updatedStandup.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = updatedStandup;
+              return updated;
+            }
+            return [updatedStandup, ...prev];
+          });
+        }
+      },
+      onRevisionChange: (eventType, revOrId) => {
+        if (!isMounted) return;
+        if (eventType === 'DELETE') {
+          setRevisions(prev => prev.filter(r => r.id !== revOrId.id));
+        } else {
+          const updatedRevision = revOrId as RevisionItem;
+          setRevisions(prev => {
+            const index = prev.findIndex(r => r.id === updatedRevision.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = updatedRevision;
+              return updated;
+            }
+            return [updatedRevision, ...prev];
+          });
+        }
+      },
+      onPresenceChange: (users) => {
+        if (isMounted) setOnlineUsers(users);
+      },
+      onStructuralChange: () => {
+        scheduleWorkspaceRefresh();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      unsubscribeHub();
+    };
+  }, [currentMemberId, githubUser, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, currentMemberId);
@@ -369,38 +767,46 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [isAuthenticated]);
 
-  // Sync to local storage
+  // Sync to local storage & per-project scope
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_project`, JSON.stringify(project));
-  }, [project]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_project`, JSON.stringify(project));
+  }, [project, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_members`, JSON.stringify(members));
-  }, [members]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_members`, JSON.stringify(members));
+  }, [members, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_tasks`, JSON.stringify(tasks));
-  }, [tasks]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_tasks`, JSON.stringify(tasks));
+  }, [tasks, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_phases`, JSON.stringify(phases));
-  }, [phases]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_phases`, JSON.stringify(phases));
+  }, [phases, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_chapters`, JSON.stringify(chapters));
-  }, [chapters]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_chapters`, JSON.stringify(chapters));
+  }, [chapters, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_revisions`, JSON.stringify(revisions));
-  }, [revisions]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_revisions`, JSON.stringify(revisions));
+  }, [revisions, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_standups`, JSON.stringify(standups));
-  }, [standups]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_standups`, JSON.stringify(standups));
+  }, [standups, activeProjectId]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_activity`, JSON.stringify(activityLogs));
-  }, [activityLogs]);
+    localStorage.setItem(`capstoneflow_proj_${activeProjectId}_activity`, JSON.stringify(activityLogs));
+  }, [activityLogs, activeProjectId]);
 
   useEffect(() => {
     if (githubUser) {
@@ -414,77 +820,25 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_github_commits`, JSON.stringify(githubCommits));
   }, [githubCommits]);
 
-  // Helper to calculate exact task progress percentage based on status & subtasks
-  const getTaskProgressPercent = (task: Task): number => {
-    if (task.status === 'done') return 100;
-    
-    // Strict mathematical subtask percentage
-    if (task.subtasks && task.subtasks.length > 0) {
-      const completed = task.subtasks.filter(s => s.completed).length;
-      return Math.round((completed / task.subtasks.length) * 100);
-    }
-    
-    // Acceptance criteria percentage if no subtasks
-    if (task.acceptanceCriteria && task.acceptanceCriteria.length > 0) {
-      const completed = task.acceptanceCriteria.filter(c => c.completed).length;
-      return Math.round((completed / task.acceptanceCriteria.length) * 100);
-    }
-    
-    // Column status fallback when no item checklists exist
-    if (task.status === 'peer_review') return 75;
-    if (task.status === 'adviser_review') return 85;
-    if (task.status === 'in_progress') return 50;
-    return 0;
-  };
-
   // Dynamically calculate phase progress and overall readiness reflecting real tasks
   useEffect(() => {
-    // 1. Compute each phase's progress based on assigned tasks & deliverables
+    // 1. Compute each phase's progress strictly based on real assigned tasks & deliverables
     setPhases(prevPhases => {
       let changed = false;
       const updated = prevPhases.map(phase => {
-        const phaseTasks = tasks.filter(t => t.phaseId === phase.id);
-        const totalDeliverables = phase.keyDeliverables.length;
-        const completedDeliverables = phase.keyDeliverables.filter(d => d.completed).length;
+        const result = computePhaseProgress(phase, tasks, project.currentPhaseId);
 
-        const deliverablePct = totalDeliverables > 0 ? (completedDeliverables / totalDeliverables) * 100 : 0;
-
-        let taskPct = 0;
-        if (phaseTasks.length > 0) {
-          const totalPoints = phaseTasks.reduce((sum, t) => sum + (t.storyPoints || 1), 0);
-          const completedPoints = phaseTasks.reduce((sum, t) => {
-            const score = getTaskProgressPercent(t) / 100;
-            return sum + ((t.storyPoints || 1) * score);
-          }, 0);
-          taskPct = (completedPoints / totalPoints) * 100;
-        }
-
-        let calculatedPct = 0;
-        if (totalDeliverables > 0 && phaseTasks.length > 0) {
-          calculatedPct = Math.round((deliverablePct * 0.5) + (taskPct * 0.5));
-        } else if (totalDeliverables > 0) {
-          calculatedPct = Math.round(deliverablePct);
-        } else if (phaseTasks.length > 0) {
-          calculatedPct = Math.round(taskPct);
-        } else {
-          calculatedPct = 0;
-        }
-
-        let newStatus: MilestonePhase['status'] = phase.status;
-        if (calculatedPct === 100) {
-          newStatus = 'completed';
-        } else if (calculatedPct > 0 || phase.id === project.currentPhaseId) {
-          newStatus = 'in_progress';
-        } else {
-          newStatus = 'upcoming';
-        }
-
-        if (phase.progressPercentage !== calculatedPct || phase.status !== newStatus) {
+        if (
+          phase.progressPercentage !== result.progressPercentage ||
+          phase.status !== result.status ||
+          phase.adviserSignOff !== result.adviserSignOff ||
+          phase.signedOffDate !== result.signedOffDate ||
+          phase.signedOffBy !== result.signedOffBy
+        ) {
           changed = true;
           return {
             ...phase,
-            progressPercentage: calculatedPct,
-            status: newStatus
+            ...result
           };
         }
         return phase;
@@ -494,39 +848,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     // 2. Compute overall project readiness
-    let taskReadiness = 0;
-    if (tasks.length > 0) {
-      const totalPoints = tasks.reduce((sum, t) => sum + (t.storyPoints || 1), 0);
-      const completedPoints = tasks.reduce((sum, t) => {
-        const score = getTaskProgressPercent(t) / 100;
-        return sum + ((t.storyPoints || 1) * score);
-      }, 0);
-      taskReadiness = (completedPoints / totalPoints) * 100;
-    }
-
-    const totalDeliverables = phases.reduce((acc, p) => acc + p.keyDeliverables.length, 0);
-    const completedDeliverables = phases.reduce((acc, p) => acc + p.keyDeliverables.filter(d => d.completed).length, 0);
-    const deliverableReadiness = totalDeliverables > 0 ? (completedDeliverables / totalDeliverables) * 100 : 0;
-
-    let revisionReadiness = 100;
-    if (revisions.length > 0) {
-      const resolved = revisions.filter(r => r.status === 'resolved' || r.status === 'verified').length;
-      revisionReadiness = (resolved / revisions.length) * 100;
-    }
-
-    let calculatedOverall = 0;
-    if (tasks.length > 0) {
-      calculatedOverall = Math.round(
-        (taskReadiness * 0.60) +
-        (deliverableReadiness * 0.30) +
-        (revisionReadiness * 0.10)
-      );
-    } else {
-      calculatedOverall = Math.round(
-        (deliverableReadiness * 0.70) +
-        (revisionReadiness * 0.30)
-      );
-    }
+    const calculatedOverall = computeOverallReadiness(tasks, phases, revisions);
 
     setProject(prev => {
       if (prev.overallProgress !== calculatedOverall) {
@@ -534,18 +856,44 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return prev;
     });
-  }, [tasks, phases, revisions]);
+  }, [tasks, phases, revisions, project.currentPhaseId]);
+
+  // Periodic & visibility-based background Cloud reconciliation (100% automated)
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    // Periodic auto-sync every 30 seconds
+    const interval = setInterval(() => {
+      void syncToSupabaseSilent();
+    }, 30000);
+
+    // Auto-sync on window focus / tab visibility return
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void syncToSupabaseSilent();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [project, members, phases, tasks, standups, revisions]);
 
   // Automatic GitHub OAuth Code Detection & Exchange
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
+    const returnedState = urlParams.get('state');
+    if (returnedState) sessionStorage.setItem('capstone_oauth_state', returnedState);
     if (code) {
       // Exchange code via backend proxy
       fetch('/api/auth/github', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
+        credentials: 'same-origin',
+        body: JSON.stringify({ code, state: sessionStorage.getItem('capstone_oauth_state') || undefined })
       })
         .then(res => res.json())
         .then(data => {
@@ -561,10 +909,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               public_repos: data.user.public_repos,
               connectedAt: new Date().toISOString().split('T')[0]
             };
-            setGithubUser(userData);
-            setIsAuthenticated(true);
             
-            // Link user persona to the workspace
+            // Persist authenticated user session
+            setIsDemoMode(false);
+            sessionStorage.removeItem('capstone_oauth_state');
+            localStorage.removeItem(DEMO_MODE_KEY);
+            setGithubUser(userData);
+            localStorage.setItem(`${LOCAL_STORAGE_KEY}_github_user`, JSON.stringify(userData));
+            setIsAuthenticated(true);
+            localStorage.setItem(`${LOCAL_STORAGE_KEY}_auth`, 'true');
+            
+            // Link or create user persona in workspace roster
             setMembers(prev => {
               const cleanLogin = userData.login.toLowerCase();
               const matched = prev.find(m => 
@@ -575,16 +930,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
               if (matched) {
                 setCurrentMemberId(matched.id);
-                return prev.map(m => m.id === matched.id ? { 
+                localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, matched.id);
+                const updated = prev.map(m => m.id === matched.id ? { 
                   ...m, 
                   name: userData.name || userData.login, 
                   avatar: userData.avatar_url || `https://github.com/${userData.login}.png`,
                   githubUsername: userData.login,
                   email: userData.email || m.email
                 } : m);
+                syncMemberToSupabase(updated.find(m => m.id === matched.id)!);
+                return updated;
               }
 
-              // If a new team member is logging in with GitHub:
+              // Dynamic creation for new authenticated GitHub student
               const isFirstStudent = !prev.some(m => m.permissionLevel === 'owner');
               const newMemberId = `m_${cleanLogin}`;
               const newMember: TeamMember = {
@@ -598,31 +956,123 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 color: '#10b981',
                 githubUsername: userData.login
               };
+              
               setCurrentMemberId(newMemberId);
-              return [...prev, newMember];
+              localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, newMemberId);
+              syncMemberToSupabase(newMember);
+
+              // Filter out template mock placeholders if present
+              const filteredPrev = prev.filter(m => m.id !== DEMO_MEMBER_ID && (m.role === 'adviser' || (m.githubUsername && m.githubUsername.toLowerCase() !== 'template')));
+              return [...filteredPrev, newMember];
             });
 
             // Clean up query param and redirect back to clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
             logActivity('authenticated via GitHub OAuth 2.0', `@${userData.login}`);
+            toast.success(`Welcome, ${userData.name || userData.login}!`, {
+              description: `Signed in as @${userData.login} • Workflow System Active`
+            });
+          } else {
+            console.error('GitHub OAuth Exchange Failed:', data);
+            const errDetail = data?.error_description || data?.error || 'Invalid or expired GitHub authorization code.';
+            toast.error('GitHub OAuth Authentication Failed', {
+              description: errDetail
+            });
+            window.dispatchEvent(new CustomEvent('capstone:oauth_error', { detail: { message: errDetail } }));
+            window.history.replaceState({}, document.title, window.location.pathname);
           }
         })
         .catch(err => {
           console.error('GitHub OAuth Exchange Error:', err);
+          const networkErr = 'Could not connect to authentication proxy server. Please check your connection or continue as guest.';
+          toast.error('GitHub Authentication Error', {
+            description: networkErr
+          });
+          window.dispatchEvent(new CustomEvent('capstone:oauth_error', { detail: { message: networkErr } }));
+          window.history.replaceState({}, document.title, window.location.pathname);
         });
     }
   }, []);
 
-  const currentMember = members.find(m => m.id === currentMemberId) || members[0];
-  const currentRole = currentMember.role;
+  const currentMember = (members && members.length > 0 
+    ? members.find(m => m.id === currentMemberId) || members.find(m => m.permissionLevel === 'owner') || members[0] 
+    : null) || initialMembers[0];
+  const currentRole = currentMember?.role || 'developer';
 
-  const isOwner = currentMember.permissionLevel === 'owner';
-  const isAdviser = currentMember.permissionLevel === 'adviser';
-  const isMember = currentMember.permissionLevel === 'member';
+  const isOwner = currentMember?.permissionLevel === 'owner';
+  const isAdviser = currentMember?.permissionLevel === 'adviser';
+  const isMember = currentMember?.permissionLevel === 'member';
 
   const canManageSettings = isOwner;
   const canDeleteTasks = isOwner;
   const canSignOffMilestones = isOwner || isAdviser;
+
+  // Cross-Tab and Local Real-Time Presence Synchronization
+  useEffect(() => {
+    let presenceChannel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        presenceChannel = new BroadcastChannel('capstoneflow_presence_v1');
+      }
+    } catch {}
+
+    const broadcastHeartbeat = () => {
+      const activeObj: OnlinePresenceUser = {
+        memberId: currentMember.id,
+        name: currentMember.name,
+        avatar: currentMember.avatar || (currentMember.githubUsername ? `https://github.com/${currentMember.githubUsername}.png` : `https://ui-avatars.com/api/?name=${encodeURIComponent(currentMember.name)}&background=10b981&color=fff&bold=true`),
+        githubUsername: currentMember.githubUsername,
+        roleTitle: currentMember.roleTitle,
+        onlineAt: new Date().toISOString()
+      };
+
+      if (presenceChannel) {
+        presenceChannel.postMessage({ type: 'heartbeat', user: activeObj });
+      }
+
+      setOnlineUsers(prev => {
+        const now = Date.now();
+        const activeOnly = prev.filter(u => {
+          if (u.memberId === currentMember.id) return false;
+          if (!u.onlineAt) return true;
+          return now - new Date(u.onlineAt).getTime() < 20000;
+        });
+        return [...activeOnly, activeObj];
+      });
+    };
+
+    if (presenceChannel) {
+      presenceChannel.onmessage = (event) => {
+        const { type, user, memberId } = event.data || {};
+        if (type === 'heartbeat' && user && user.memberId) {
+          setOnlineUsers(prev => {
+            const filtered = prev.filter(u => u.memberId !== user.memberId);
+            return [...filtered, user];
+          });
+        } else if (type === 'leave' && memberId) {
+          setOnlineUsers(prev => prev.filter(u => u.memberId !== memberId));
+        }
+      };
+    }
+
+    broadcastHeartbeat();
+    const interval = setInterval(broadcastHeartbeat, 5000);
+
+    const handleUnload = () => {
+      if (presenceChannel) {
+        presenceChannel.postMessage({ type: 'leave', memberId: currentMember.id });
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+      if (presenceChannel) {
+        presenceChannel.close();
+      }
+    };
+  }, [currentMember]);
 
   const updateMemberPermission = (memberId: string, level: PermissionLevel) => {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissionLevel: level } : m));
@@ -645,57 +1095,158 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setActivityLogs(prev => [newLog, ...prev.slice(0, 29)]);
   };
 
-  const toggleTheme = () => {
-    document.documentElement.classList.add('disable-transitions');
-    const next = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.style.colorScheme = next;
-    setTheme(next);
-    setTimeout(() => {
-      document.documentElement.classList.remove('disable-transitions');
-    }, 20);
+  const toggleTheme = (event?: React.MouseEvent | MouseEvent) => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+
+    const isAppearanceTransition =
+      typeof document !== 'undefined' &&
+      'startViewTransition' in document &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!isAppearanceTransition) {
+      setTheme(nextTheme);
+      return;
+    }
+
+    const x = event ? event.clientX : window.innerWidth / 2;
+    const y = event ? event.clientY : window.innerHeight / 2;
+
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const transition = (document as any).startViewTransition(async () => {
+      setTheme(nextTheme);
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    transition.ready.then(() => {
+      const clipPath = [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${endRadius}px at ${x}px ${y}px)`
+      ];
+
+      // Emil Kowalski Ultra-Smooth Organic Wave:
+      // 720ms duration + soft quintic deceleration curve + gentle opacity counter-blend to eliminate harsh flashing
+      document.documentElement.animate(
+        {
+          clipPath: clipPath,
+          opacity: [0.92, 1]
+        },
+        {
+          duration: 720,
+          easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+
+      document.documentElement.animate(
+        {
+          opacity: [1, 0.92]
+        },
+        {
+          duration: 720,
+          easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+          pseudoElement: '::view-transition-old(root)'
+        }
+      );
+    });
   };
 
   const loginUser = (memberId: string) => {
+    if (memberId === DEMO_MEMBER_ID) {
+      const demoMember: TeamMember = {
+        ...initialMembers[0],
+        id: DEMO_MEMBER_ID,
+        name: 'Sample Workspace Lead',
+        email: 'sample@capstoneflow.local',
+        githubUsername: undefined,
+        avatar: 'https://ui-avatars.com/api/?name=Sample+Workspace+Lead&background=6366f1&color=fff&bold=true'
+      };
+
+      setIsDemoMode(true);
+      setIsAuthenticated(true);
+      setGithubUser(null);
+      setCurrentMemberId(DEMO_MEMBER_ID);
+      setMembers(prev => [demoMember, ...prev.filter(member => member.id === 'm_adviser')]);
+      localStorage.setItem(DEMO_MODE_KEY, 'true');
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY}_github_user`);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, DEMO_MEMBER_ID);
+      localStorage.setItem('capstone_active_view', 'projects');
+      window.location.hash = '#projects';
+      toast.success('Sample Workspace Ready', {
+        description: 'You are browsing a demo workspace. Your GitHub account is not connected.'
+      });
+      return;
+    }
+
+    setIsDemoMode(false);
+    localStorage.removeItem(DEMO_MODE_KEY);
     setCurrentMemberId(memberId);
     setIsAuthenticated(true);
-    const target = members.find(m => m.id === memberId);
-    if (target && target.githubUsername) {
-      const gUser: GitHubUser = {
-        id: target.githubUsername,
-        login: target.githubUsername,
-        name: target.name,
-        avatar_url: target.avatar || `https://github.com/${target.githubUsername}.png`,
-        email: target.email,
-        bio: target.roleTitle,
-        html_url: `https://github.com/${target.githubUsername}`,
-        connectedAt: new Date().toISOString().split('T')[0]
-      };
-      setGithubUser(gUser);
-    }
+    const target = members.find(m => m.id === memberId) || members[0];
+    const username = target?.githubUsername || (target?.name || 'lead').toLowerCase().replace(/\s+/g, '_');
+    const gUser: GitHubUser = {
+      id: username,
+      login: username,
+      name: target?.name || 'Capstone Lead',
+      avatar_url: target?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(target?.name || 'User')}&background=6366f1&color=fff&bold=true`,
+      email: target?.email || `${username}@university.edu`,
+      bio: target?.roleTitle || 'Capstone Developer',
+      html_url: `https://github.com/${username}`,
+      connectedAt: new Date().toISOString().split('T')[0]
+    };
+    setGithubUser(gUser);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_auth`, 'true');
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_github_user`, JSON.stringify(gUser));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, memberId);
+      localStorage.setItem('capstone_active_view', 'projects');
+      window.location.hash = '#projects';
+    } catch {}
     logActivity('authenticated into workspace', target?.name || 'Member');
   };
 
   const signOut = () => {
+    void fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     setIsAuthenticated(false);
+    setIsDemoMode(false);
+    setGithubUser(null);
     localStorage.removeItem(`${LOCAL_STORAGE_KEY}_auth`);
+    localStorage.removeItem(`${LOCAL_STORAGE_KEY}_github_user`);
+    localStorage.removeItem(DEMO_MODE_KEY);
+    try {
+      localStorage.setItem('capstone_active_view', 'projects');
+      window.location.hash = '#projects';
+    } catch {}
     logActivity('signed out of workspace', currentMember.name);
+    toast.info('Signed Out', {
+      description: 'You have been signed out of the workspace.'
+    });
   };
 
   const switchMember = (memberId: string) => {
     setCurrentMemberId(memberId);
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, memberId);
     const target = members.find(m => m.id === memberId);
-    if (target && target.githubUsername) {
-      const gUser: GitHubUser = {
-        id: target.githubUsername,
-        login: target.githubUsername,
-        name: target.name,
-        avatar_url: target.avatar || `https://github.com/${target.githubUsername}.png`,
-        email: target.email,
-        bio: target.roleTitle,
-        html_url: `https://github.com/${target.githubUsername}`,
-        connectedAt: new Date().toISOString().split('T')[0]
-      };
-      setGithubUser(gUser);
+    if (target) {
+      toast.info(`Active Persona: ${target.name}`, {
+        description: `Switched to ${target.roleTitle} (${target.permissionLevel.toUpperCase()})`
+      });
+      if (target.githubUsername) {
+        const gUser: GitHubUser = {
+          id: target.githubUsername,
+          login: target.githubUsername,
+          name: target.name,
+          avatar_url: target.avatar || `https://github.com/${target.githubUsername}.png`,
+          email: target.email,
+          bio: target.roleTitle,
+          html_url: `https://github.com/${target.githubUsername}`,
+          connectedAt: new Date().toISOString().split('T')[0]
+        };
+        setGithubUser(gUser);
+      }
     }
   };
 
@@ -839,9 +1390,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const removeMember = (memberId: string) => {
-    if (memberId === 'm1' || memberId === currentMemberId) return;
+    if (memberId === currentMemberId || memberId === 'm_adviser') {
+      toast.error('Cannot Remove Member', {
+        description: 'You cannot remove your active session or the faculty adviser.'
+      });
+      return;
+    }
     setMembers(prev => prev.filter(m => m.id !== memberId));
+    deleteMemberFromSupabase(memberId);
     logActivity('removed member from roster', memberId);
+    toast.success('Member Removed', {
+      description: `Member removed from roster.`
+    });
   };
 
   const logoutGitHub = () => {
@@ -856,28 +1416,79 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     logActivity('linked GitHub repository', repoUrl);
   };
 
-  const syncGitHubData = async (targetUrl?: string): Promise<boolean> => {
+  const githubCommitsRef = useRef(githubCommits);
+  useEffect(() => {
+    githubCommitsRef.current = githubCommits;
+  }, [githubCommits]);
+
+  const syncGitHubData = async (targetUrl?: string, options?: { silent?: boolean }): Promise<boolean> => {
+    const isSilent = options?.silent ?? false;
     const repoTarget = targetUrl || project.githubRepoUrl || DEFAULT_GITHUB_REPO_URL;
     const parsed = parseGitHubRepoUrl(repoTarget);
     if (!parsed) {
-      toast.error('Invalid Repository Target', {
-        description: 'Please enter a valid GitHub repository (e.g. Realwaan/USCCE or https://github.com/...)'
-      });
+      if (!isSilent) {
+        toast.error('Invalid Repository Target', {
+          description: 'Please enter a valid GitHub repository (e.g. owner/repo or https://github.com/owner/repo)'
+        });
+      }
       return false;
     }
 
+    setIsSyncingGitHub(true);
     try {
       const result = await syncRepositoryData(parsed.owner, parsed.repo);
 
       if (result.success) {
+        setLastGitHubSyncTime(new Date());
+
+        const prevCommits = githubCommitsRef.current;
+        const prevTopSha = prevCommits[0]?.sha;
+        const newTopSha = result.commits[0]?.sha;
+        const hasNewChanges = prevTopSha && newTopSha && prevTopSha !== newTopSha;
+        const newCommitCount = hasNewChanges
+          ? (result.commits.findIndex(c => c.sha === prevTopSha) !== -1
+              ? result.commits.findIndex(c => c.sha === prevTopSha)
+              : result.commits.length)
+          : 0;
+
         setGithubCommits(result.commits);
         setGithubPRs(result.pullRequests);
 
-        // Smart Task-Commit Auto Linking
-        if (result.commits.length > 0) {
+        // Smart Task-Commit & PR Auto Linking and Workflow Gate Advancement
+        if (result.pullRequests.length > 0 || result.commits.length > 0) {
           setTasks(prevTasks => {
             let changed = false;
             const updated = prevTasks.map(t => {
+              // Check PR match first
+              const prMatch = result.pullRequests.find(pr =>
+                pr.title.toLowerCase().includes(t.id.toLowerCase()) ||
+                pr.title.toLowerCase().includes(t.title.toLowerCase()) ||
+                (t.githubPrNumber && pr.number === t.githubPrNumber)
+              );
+
+              if (prMatch) {
+                if (prMatch.state === 'merged' && t.status !== 'done') {
+                  changed = true;
+                  return {
+                    ...t,
+                    status: 'done' as const,
+                    prUrl: prMatch.html_url,
+                    githubPrNumber: prMatch.number,
+                    resolvedAt: new Date().toISOString().split('T')[0],
+                    resolvedByUsername: prMatch.author
+                  };
+                } else if (prMatch.state === 'open' && (t.status === 'todo' || t.status === 'in_progress')) {
+                  changed = true;
+                  return {
+                    ...t,
+                    status: 'peer_review' as const,
+                    prUrl: prMatch.html_url,
+                    githubPrNumber: prMatch.number
+                  };
+                }
+              }
+
+              // Check Commit match
               const match = result.commits.find(c =>
                 c.message.toLowerCase().includes(t.id.toLowerCase()) ||
                 c.message.toLowerCase().includes(t.title.toLowerCase())
@@ -897,54 +1508,220 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           });
         }
 
-        logActivity('synced GitHub repository feed', `${parsed.owner}/${parsed.repo}`);
-        toast.success('GitHub Synced', {
-          description: `Loaded ${result.commits.length} commits & ${result.pullRequests.length} PRs from ${parsed.owner}/${parsed.repo}`
-        });
+        if (isSilent) {
+          if (hasNewChanges && newCommitCount > 0) {
+            logActivity('auto-detected new git commits', `${newCommitCount} new commit(s) in ${parsed.owner}/${parsed.repo}`);
+            toast.success('Live Git Update Detected', {
+              description: `Auto-pulled ${newCommitCount} new commit(s) from ${parsed.owner}/${parsed.repo}: "${result.commits[0]?.message}"`
+            });
+          }
+        } else {
+          logActivity('synced GitHub repository feed', `${parsed.owner}/${parsed.repo}`);
+          toast.success('GitHub Synced', {
+            description: `Loaded ${result.commits.length} commits & ${result.pullRequests.length} PRs from ${parsed.owner}/${parsed.repo}`
+          });
+        }
         return true;
       } else {
-        logActivity('GitHub sync issue', result.errorMessage || 'Sync failed');
-        toast.error('GitHub Sync Issue', {
-          description: result.errorMessage || 'Could not fetch repository activity'
-        });
+        if (!isSilent) {
+          logActivity('GitHub sync issue', result.errorMessage || 'Sync failed');
+          toast.error('GitHub Sync Issue', {
+            description: result.errorMessage || 'Could not fetch repository activity'
+          });
+        }
         return false;
       }
     } catch (e: any) {
       console.warn('syncGitHubData error:', e);
-      toast.error('GitHub Sync Failed', {
-        description: e.message || 'Network error while contacting GitHub API.'
-      });
+      if (!isSilent) {
+        toast.error('GitHub Sync Failed', {
+          description: e.message || 'Network error while contacting GitHub API.'
+        });
+      }
       return false;
+    } finally {
+      setIsSyncingGitHub(false);
     }
   };
 
+  // Real-Time GitHub Continuous Auto-Tracker Hook
+  useEffect(() => {
+    if (!isAutoTracking) return;
+
+    const repoTarget = project.githubRepoUrl || DEFAULT_GITHUB_REPO_URL;
+    if (!parseGitHubRepoUrl(repoTarget)) return;
+
+    // Background scan every 25 seconds
+    const SCAN_INTERVAL_MS = 25000;
+    const interval = setInterval(() => {
+      syncGitHubData(undefined, { silent: true });
+    }, SCAN_INTERVAL_MS);
+
+    // Instant scan when user switches focus to CapstoneFlow window
+    const handleFocus = () => {
+      syncGitHubData(undefined, { silent: true });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncGitHubData(undefined, { silent: true });
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAutoTracking, project.githubRepoUrl]);
+
   // Task Handlers
+  const syncTaskStateToDiscord = (task: Task, actor: string) => {
+    if (!isDiscordTicketSyncEnabled() || !task.discordTicket?.channelId) return;
+
+    void syncDiscordTicketStatus(task, actor).then(result => {
+      if (!result) return;
+      const syncedTask: Task = {
+        ...task,
+        discordTicket: {
+          ...task.discordTicket!,
+          syncStatus: 'synced',
+          lastSyncedAt: result.lastSyncedAt,
+          lastError: undefined
+        }
+      };
+      setTasks(prev => prev.map(item => item.id === task.id ? syncedTask : item));
+      void syncTaskToSupabase(syncedTask);
+    }).catch(error => {
+      const failedTask: Task = {
+        ...task,
+        discordTicket: {
+          ...task.discordTicket!,
+          syncStatus: 'error',
+          lastError: error instanceof Error ? error.message : 'Discord status sync failed.'
+        }
+      };
+      setTasks(prev => prev.map(item => item.id === task.id ? failedTask : item));
+      void syncTaskToSupabase(failedTask);
+      console.warn('Discord background status sync offline:', error);
+    });
+  };
+
   const addTask = (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => {
+    const discordSyncEnabled = isDiscordTicketSyncEnabled();
+    const pendingDiscordTicket = discordSyncEnabled
+      ? {
+          guildId: '',
+          channelId: '',
+          channelUrl: '',
+          syncStatus: 'pending' as const
+        }
+      : undefined;
     const newTask: Task = {
       ...taskData,
+      ...(pendingDiscordTicket ? { discordTicket: pendingDiscordTicket } : {}),
+      status: taskData.status === 'backlog' ? 'backlog' : 'todo',
+      phaseId: taskData.phaseId || project.currentPhaseId,
       id: `task-${Date.now()}`,
       loggedHours: 0,
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => [newTask, ...prev]);
-    syncTaskToSupabase(newTask);
+    void syncTaskToSupabase(newTask);
+    if (discordSyncEnabled) {
+      void createDiscordTicket(newTask).then(discordTicket => {
+        if (!discordTicket) return;
+
+        const linkedTask = { ...newTask, discordTicket };
+        setTasks(prev => prev.map(task => task.id === newTask.id ? linkedTask : task));
+        void syncTaskToSupabase(linkedTask);
+        toast.success('Discord ticket created', {
+          description: 'The website task is now linked to its Discord ticket channel.'
+        });
+      }).catch(error => {
+        const failedDiscordTicket = {
+          ...(pendingDiscordTicket || {
+            guildId: '',
+            channelId: '',
+            channelUrl: ''
+          }),
+          syncStatus: 'error' as const,
+          lastError: error instanceof Error ? error.message : 'Discord ticket creation failed.'
+        };
+        const failedTask = { ...newTask, discordTicket: failedDiscordTicket };
+        setTasks(prev => prev.map(task => task.id === newTask.id ? failedTask : task));
+        void syncTaskToSupabase(failedTask);
+        console.warn('Discord background ticket creation offline:', error);
+      });
+    }
     logActivity('created a new task', newTask.title);
     toast.success(`Task created: "${newTask.title}"`);
   };
 
-  const updateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          const updated = { ...t, ...updates, updatedAt: new Date().toISOString().split('T')[0] };
-          syncTaskToSupabase(updated);
-          return updated;
+  const retryDiscordTicket = async (taskId: string): Promise<boolean> => {
+    const target = tasks.find(task => task.id === taskId);
+    if (!target || !isDiscordTicketSyncEnabled()) return false;
+
+    const pendingLink = {
+      ...(target.discordTicket || { guildId: '', channelId: '', channelUrl: '' }),
+      syncStatus: 'pending' as const,
+      lastError: undefined
+    };
+    const pendingTask = { ...target, discordTicket: pendingLink };
+    setTasks(prev => prev.map(task => task.id === taskId ? pendingTask : task));
+    void syncTaskToSupabase(pendingTask);
+
+    try {
+      const discordTicket = await createDiscordTicket(target);
+      if (!discordTicket) return false;
+      const linkedTask = { ...target, discordTicket };
+      setTasks(prev => prev.map(task => task.id === taskId ? linkedTask : task));
+      void syncTaskToSupabase(linkedTask);
+      toast.success('Discord ticket linked', {
+        description: 'The task is connected to its Discord ticket channel.'
+      });
+      return true;
+    } catch (error) {
+      const failedTask = {
+        ...target,
+        discordTicket: {
+          ...pendingLink,
+          syncStatus: 'error' as const,
+          lastError: error instanceof Error ? error.message : 'Discord ticket creation failed.'
         }
-        return t;
-      })
-    );
-    logActivity('updated task details', updates.title || 'a task');
+      };
+      setTasks(prev => prev.map(task => task.id === taskId ? failedTask : task));
+      void syncTaskToSupabase(failedTask);
+      toast.error('Discord ticket sync failed', {
+        description: 'Check the bot configuration and try the link again.'
+      });
+      return false;
+    }
+  };
+
+  const updateTask = (taskId: string, updates: Partial<Task>) => {
+    const target = tasks.find(task => task.id === taskId);
+    if (!target) return;
+
+    const { status: requestedStatus, ...safeUpdates } = updates;
+    if (requestedStatus && requestedStatus !== target.status) {
+      toast.info('Workflow stage is protected', {
+        description: 'Use the ticket actions to move work through review and adviser approval.'
+      });
+    }
+
+    const updated: Task = {
+      ...target,
+      ...safeUpdates,
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
+    logActivity('updated task details', updated.title || 'a task');
     toast.success('Task details updated');
   };
 
@@ -958,9 +1735,35 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const claimTask = (taskId: string) => {
+  const claimTask = (taskId: string): boolean => {
     const target = tasks.find(t => t.id === taskId);
-    if (!target) return;
+    if (!target) return false;
+
+    if (currentMember.role === 'adviser' || currentMember.role === 'coordinator') {
+      toast.error('This role cannot claim delivery work', {
+        description: 'Advisers and coordinators approve or oversee work rather than own implementation tasks.'
+      });
+      return false;
+    }
+
+    if (target.assigneeId && target.assigneeId !== currentMember.id) {
+      toast.warning('Ticket already claimed', {
+        description: 'Only the current owner or project lead can release this task.'
+      });
+      return false;
+    }
+
+    if (target.phaseId !== project.currentPhaseId) {
+      toast.info('Activate the task phase first', {
+        description: 'Tasks can be claimed when their milestone is the active phase.'
+      });
+      return false;
+    }
+
+    if (target.status !== 'backlog' && target.status !== 'todo') {
+      toast.info('This task is already in the delivery workflow.');
+      return false;
+    }
 
     const claimedAt = new Date().toISOString();
     const claimerHandle = githubUser ? `@${githubUser.login}` : `@${currentMember.name.replace(/\s+/g, '').toLowerCase()}`;
@@ -974,34 +1777,40 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       newStatus: `[CLAIMED][${claimerHandle}]`
     };
 
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          const nextStatus = (t.status === 'backlog' || t.status === 'todo') ? 'in_progress' : t.status;
-          const events = t.ticketEvents ? [newEvent, ...t.ticketEvents] : [newEvent];
-          return {
-            ...t,
-            assigneeId: currentMember.id,
-            status: nextStatus,
-            claimedAt,
-            claimedByUsername: claimerHandle,
-            ticketEvents: events,
-            updatedAt: new Date().toISOString().split('T')[0]
-          };
-        }
-        return t;
-      })
-    );
+    const updated: Task = {
+      ...target,
+      assigneeId: currentMember.id,
+      status: 'in_progress',
+      claimedAt,
+      claimedByUsername: claimerHandle,
+      ticketEvents: target.ticketEvents ? [newEvent, ...target.ticketEvents] : [newEvent],
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
     logActivity('claimed ownership of task (/claim)', `[CLAIMED][${claimerHandle}] ${target.title}`);
-    notifyDiscordTaskClaimed(target, currentMember.name, claimerHandle);
+    syncTaskStateToDiscord(updated, claimerHandle);
     toast.success('Ticket Claimed', {
       description: `Assigned to ${claimerHandle}`
     });
+    return true;
   };
 
-  const releaseTask = (taskId: string) => {
+  const releaseTask = (taskId: string): boolean => {
     const target = tasks.find(t => t.id === taskId);
-    if (!target) return;
+    if (!target) return false;
+
+    if (target.assigneeId !== currentMember.id && currentMember.role !== 'leader') {
+      toast.error('Only the task owner or project lead can release this ticket.');
+      return false;
+    }
+
+    if (target.status !== 'in_progress') {
+      toast.info('Review-stage work cannot be released', {
+        description: 'Ask the reviewer to send it back through the ticket instead.'
+      });
+      return false;
+    }
 
     const timestamp = new Date().toISOString();
     const userHandle = githubUser ? `@${githubUser.login}` : `@${currentMember.name.replace(/\s+/g, '').toLowerCase()}`;
@@ -1015,32 +1824,53 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       newStatus: '[OPEN]'
     };
 
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          const events = t.ticketEvents ? [newEvent, ...t.ticketEvents] : [newEvent];
-          return {
-            ...t,
-            status: 'todo',
-            assigneeId: '',
-            claimedAt: undefined,
-            claimedByUsername: undefined,
-            ticketEvents: events,
-            updatedAt: new Date().toISOString().split('T')[0]
-          };
-        }
-        return t;
-      })
-    );
+    const updated: Task = {
+      ...target,
+      status: 'todo',
+      assigneeId: '',
+      claimedAt: undefined,
+      claimedByUsername: undefined,
+      ticketEvents: target.ticketEvents ? [newEvent, ...target.ticketEvents] : [newEvent],
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
+    syncTaskStateToDiscord(updated, userHandle);
     logActivity('unclaimed ticket back to open pool (/unclaim)', `[OPEN] ${target.title}`);
     toast.info('Ticket Released', {
       description: `"${target.title}" returned to open pool`
     });
+    return true;
   };
 
-  const resolveTask = (taskId: string, prUrl?: string, note?: string) => {
+  const resolveTask = (taskId: string, prUrl?: string, note?: string): boolean => {
     const target = tasks.find(t => t.id === taskId);
-    if (!target) return;
+    if (!target) return false;
+
+    const isOwner = target.assigneeId === currentMember.id;
+    const isPM = currentMember.role === 'leader';
+    if (!isOwner && !isPM) {
+      toast.error('Access Denied', { description: 'Only the ticket claimer or Project Manager can submit for review.' });
+      return false;
+    }
+
+    if (target.status !== 'in_progress') {
+      toast.info('Start the task before submitting it for review.');
+      return false;
+    }
+
+    if (target.phaseId !== project.currentPhaseId) {
+      toast.info('This task belongs to an inactive phase', {
+        description: 'Finish the active phase workflow before submitting later-phase work.'
+      });
+      return false;
+    }
+
+    const submissionGate = getTaskSubmissionGate(target, prUrl);
+    if (!submissionGate.isReady) {
+      showSubmissionGateToast(submissionGate.missing);
+      return false;
+    }
 
     const timestamp = new Date().toISOString();
     const userHandle = githubUser ? `@${githubUser.login}` : `@${currentMember.name.replace(/\s+/g, '').toLowerCase()}`;
@@ -1051,120 +1881,146 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       username: userHandle,
       timestamp,
       oldStatus: target.assigneeId ? `[CLAIMED][${target.claimedByUsername || userHandle}]` : '[OPEN]',
-      newStatus: `[PENDING-REVIEW][${userHandle}]`,
+      newStatus: `[PEER-REVIEW][${userHandle}]`,
       prUrl,
       note
     };
 
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          const events = t.ticketEvents ? [newEvent, ...t.ticketEvents] : [newEvent];
-          return {
-            ...t,
-            status: 'peer_review',
-            prUrl: prUrl || t.prUrl,
-            resolvedAt: timestamp,
-            resolvedByUsername: userHandle,
-            ticketEvents: events,
-            updatedAt: new Date().toISOString().split('T')[0]
-          };
-        }
-        return t;
-      })
-    );
-    logActivity('submitted ticket for review (/resolved)', `[PENDING-REVIEW] ${target.title}`);
-    notifyDiscordTaskResolved(target, currentMember.name, userHandle, prUrl);
-    toast.success('Ticket Ready for Review', {
-      description: prUrl ? `Linked PR: ${prUrl}` : 'Marked pending peer & adviser review'
+    const updated: Task = {
+      ...target,
+      status: 'peer_review',
+      prUrl: prUrl || target.prUrl,
+      resolvedAt: timestamp,
+      resolvedByUsername: userHandle,
+      ticketEvents: target.ticketEvents ? [newEvent, ...target.ticketEvents] : [newEvent],
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
+    logActivity('submitted ticket for peer review', `[PEER-REVIEW] ${target.title}`);
+    syncTaskStateToDiscord(updated, userHandle);
+    toast.success('Ticket ready for peer review', {
+      description: prUrl ? `Linked evidence: ${prUrl}` : 'Evidence and acceptance criteria are ready for verification.'
     });
+    return true;
   };
 
-  const reviewTask = (taskId: string, note?: string) => {
+  const reviewTask = (taskId: string, note?: string): boolean => {
     const target = tasks.find(t => t.id === taskId);
-    if (!target) return;
+    if (!target) return false;
+
+    if (target.status !== 'peer_review' && target.status !== 'adviser_review') {
+      toast.info('This task is not waiting for review.');
+      return false;
+    }
 
     const timestamp = new Date().toISOString();
     const userHandle = githubUser ? `@${githubUser.login}` : `@${currentMember.name.replace(/\s+/g, '').toLowerCase()}`;
 
-    const newEvent: TicketEvent = {
-      id: `evt-${Date.now()}`,
-      type: 'reviewed',
-      username: userHandle,
-      timestamp,
-      oldStatus: `[PENDING-REVIEW]`,
-      newStatus: `[REVIEWED][${userHandle}]`,
-      note
-    };
+    if (target.status === 'peer_review') {
+      const canPeerReview = currentMember.role === 'qa' || currentMember.role === 'leader';
+      if (!canPeerReview) {
+        toast.error('Peer review requires QA or project-lead verification.');
+        return false;
+      }
 
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          const events = t.ticketEvents ? [newEvent, ...t.ticketEvents] : [newEvent];
-          return {
-            ...t,
-            status: 'done',
-            reviewedAt: timestamp,
-            reviewedByUsername: userHandle,
-            ticketEvents: events,
-            updatedAt: new Date().toISOString().split('T')[0]
-          };
-        }
-        return t;
-      })
-    );
-    logActivity('approved and reviewed ticket (/reviewed)', `[REVIEWED] ${target.title}`);
-    notifyDiscordTaskReviewed(target, currentMember.name, userHandle);
-    toast.success('Ticket Approved', {
-      description: 'Verified and signed off by QA / Adviser'
+      if (target.assigneeId === currentMember.id) {
+        toast.error('Independent review required', {
+          description: 'The task owner cannot approve their own submission.'
+        });
+        return false;
+      }
+
+      const peerReviewEvent: TicketEvent = {
+        id: `evt-${Date.now()}`,
+        type: 'peer_reviewed',
+        username: userHandle,
+        timestamp,
+        oldStatus: '[PEER-REVIEW]',
+        newStatus: `[ADVISER-REVIEW][${userHandle}]`,
+        note
+      };
+      const updated: Task = {
+        ...target,
+        status: 'adviser_review',
+        peerReviewedAt: timestamp,
+        peerReviewedByUsername: userHandle,
+        reviewedAt: timestamp,
+        reviewedByUsername: userHandle,
+        ticketEvents: target.ticketEvents ? [peerReviewEvent, ...target.ticketEvents] : [peerReviewEvent],
+        updatedAt: new Date().toISOString().split('T')[0]
+      };
+      setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+      void syncTaskToSupabase(updated);
+      logActivity('completed peer review', `[ADVISER-REVIEW] ${target.title}`);
+      syncTaskStateToDiscord(updated, userHandle);
+      toast.success('Peer review complete', {
+        description: 'The task is now waiting for faculty adviser approval.'
+      });
+      return true;
+    }
+
+    const isLeadOrManager = currentMember.role === 'leader' || currentMember.permissionLevel === 'owner' || isOwner;
+    const isAdviserRole = currentMember.role === 'adviser';
+    if (!isAdviserRole && !isLeadOrManager) {
+      toast.error('Adviser consultation verification required', {
+        description: 'Only the Project Leader, Manager, or Faculty Adviser can record final task approval.'
+      });
+      return false;
+    }
+
+    const adviserName = project.adviser?.name || 'Faculty Adviser';
+    const approvalNote = note || (isAdviserRole ? 'Directly approved by faculty adviser.' : `Verified via consultation with ${adviserName}.`);
+    const reviewerHandle = isAdviserRole ? userHandle : `${userHandle} (per ${adviserName})`;
+
+    const adviserApprovalEvent: TicketEvent = {
+      id: `evt-${Date.now()}`,
+      type: 'adviser_approved',
+      username: reviewerHandle,
+      timestamp,
+      oldStatus: '[ADVISER-REVIEW]',
+      newStatus: `[ADVISER-APPROVED][${reviewerHandle}]`,
+      note: approvalNote
+    };
+    const updated: Task = {
+      ...target,
+      status: 'done',
+      adviserReviewedAt: timestamp,
+      adviserReviewedByUsername: reviewerHandle,
+      reviewedAt: timestamp,
+      reviewedByUsername: reviewerHandle,
+      ticketEvents: target.ticketEvents ? [adviserApprovalEvent, ...target.ticketEvents] : [adviserApprovalEvent],
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
+    logActivity('recorded adviser consultation approval for task', `[DONE] ${target.title}`);
+    syncTaskStateToDiscord(updated, userHandle);
+    toast.success('Adviser Approval Verified', {
+      description: isAdviserRole ? 'The task is approved and marked done.' : `Task verified per consultation with ${adviserName} and marked done.`
     });
+    return true;
   };
 
-  const closeTask = (taskId: string, reason?: string) => {
-    const target = tasks.find(t => t.id === taskId);
-    if (!target) return;
+  const approveTaskAdviserReview = (taskId: string, consultationNotes?: string): boolean => {
+    return reviewTask(taskId, consultationNotes);
+  };
 
-    const timestamp = new Date().toISOString();
-    const userHandle = githubUser ? `@${githubUser.login}` : `@${currentMember.name.replace(/\s+/g, '').toLowerCase()}`;
-
-    const newEvent: TicketEvent = {
-      id: `evt-${Date.now()}`,
-      type: 'closed',
-      username: userHandle,
-      timestamp,
-      oldStatus: `[${target.status.toUpperCase()}]`,
-      newStatus: `[CLOSED]`,
-      note: reason
-    };
-
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          const events = t.ticketEvents ? [newEvent, ...t.ticketEvents] : [newEvent];
-          return {
-            ...t,
-            status: 'done',
-            closedAt: timestamp,
-            closedByUsername: userHandle,
-            ticketEvents: events,
-            updatedAt: new Date().toISOString().split('T')[0]
-          };
-        }
-        return t;
-      })
-    );
-    logActivity('closed ticket (/closed)', `[CLOSED] ${target.title}`);
-    toast.info(`🔒 Ticket closed: "${target.title}"`);
+  const closeTask = (_taskId: string, _reason?: string): boolean => {
+    toast.info('Task completion is protected', {
+      description: 'Complete peer review and adviser approval instead of closing a task directly.'
+    });
+    return false;
   };
 
   const loadTemplateTickets = () => {
-    setTasks(initialTasks);
+    setTasks(templateCapstoneTickets);
     logActivity('reloaded template capstone tickets (/load-tickets)', 'Task Matrix');
     toast.success('📥 Loaded institutional capstone tickets into matrix!');
   };
 
   const rebuildDatabase = () => {
-    setTasks(initialTasks);
+    setTasks(templateCapstoneTickets);
     setPhases(initialPhases);
     setChapters(initialChapters);
     setRevisions(initialRevisions);
@@ -1175,55 +2031,73 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const toggleTaskAcceptanceCriteria = (taskId: string, criteriaId: string) => {
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId && t.acceptanceCriteria) {
-          const updatedCriteria = t.acceptanceCriteria.map(c =>
-            c.id === criteriaId ? { ...c, completed: !c.completed } : c
-          );
-          return { ...t, acceptanceCriteria: updatedCriteria };
-        }
-        return t;
-      })
-    );
+    const target = tasks.find(task => task.id === taskId);
+    if (!target?.acceptanceCriteria) return;
+
+    const canEdit = target.assigneeId === currentMember.id || currentMember.role === 'leader';
+    if (!canEdit) {
+      toast.error('Only the task owner or project lead can update acceptance criteria.');
+      return;
+    }
+
+    if (target.status === 'peer_review' || target.status === 'adviser_review' || target.status === 'done') {
+      toast.info('Acceptance criteria are locked during review and after approval.');
+      return;
+    }
+
+    const updated: Task = {
+      ...target,
+      acceptanceCriteria: target.acceptanceCriteria.map(criteria =>
+        criteria.id === criteriaId ? { ...criteria, completed: !criteria.completed } : criteria
+      ),
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
   };
 
-  const moveTaskStatus = (taskId: string, newStatus: TaskStatus) => {
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id === taskId) {
-          return {
-            ...t,
-            status: newStatus,
-            updatedAt: new Date().toISOString().split('T')[0]
-          };
-        }
-        return t;
-      })
-    );
-    const target = tasks.find(t => t.id === taskId);
-    if (target) {
-      logActivity(`moved task to ${newStatus}`, target.title);
-      if (newStatus === 'done') {
-        toast.success(`🎉 Completed: "${target.title}"`);
-      } else {
-        toast.info(`Moved to ${newStatus.replace('_', ' ')}: "${target.title}"`);
-      }
+  const moveTaskStatus = (taskId: string, newStatus: TaskStatus): boolean => {
+    const target = tasks.find(task => task.id === taskId);
+    if (!target) return false;
+
+    const canStageTask = currentMember.role === 'leader' && target.status === 'backlog' && newStatus === 'todo';
+    if (!canStageTask) {
+      toast.info('This workflow stage is protected', {
+        description: 'Claim work, submit evidence, and complete the review gates from the ticket.'
+      });
+      return false;
     }
+
+    const updated: Task = {
+      ...target,
+      status: 'todo',
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
+    void syncTaskToSupabase(updated);
+    syncTaskStateToDiscord(updated, currentMember.name);
+    logActivity('staged task for the active workflow', target.title);
+    toast.info(`Moved to to do: "${target.title}"`);
+    return true;
   };
 
   const toggleSubtask = (taskId: string, subtaskId: string) => {
+    let updatedTask: Task | null = null;
     setTasks(prev =>
       prev.map(t => {
         if (t.id === taskId) {
-          const updatedSubtasks = t.subtasks.map(st =>
+          const updatedSubtasks = (t.subtasks || []).map(st =>
             st.id === subtaskId ? { ...st, completed: !st.completed } : st
           );
-          return { ...t, subtasks: updatedSubtasks };
+          updatedTask = { ...t, subtasks: updatedSubtasks };
+          return updatedTask;
         }
         return t;
       })
     );
+    if (updatedTask) {
+      void syncTaskToSupabase(updatedTask);
+    }
   };
 
   // Milestone / Phase Handlers
@@ -1231,12 +2105,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setPhases(prev =>
       prev.map(p => {
         if (p.id === phaseId) {
-          const updatedDeliverables = p.keyDeliverables.map(d =>
+          const currentDelivs = p.keyDeliverables || [];
+          const updatedDeliverables = currentDelivs.map(d =>
             d.id === deliverableId ? { ...d, completed: !d.completed } : d
           );
           const completedCount = updatedDeliverables.filter(d => d.completed).length;
-          const pct = Math.round((completedCount / updatedDeliverables.length) * 100);
-          const newStatus = pct === 100 ? 'completed' : pct > 0 ? 'in_progress' : 'upcoming';
+          const totalCount = updatedDeliverables.length;
+          const isAllDone = totalCount > 0 && completedCount === totalCount;
           const targetDeliv = updatedDeliverables.find(d => d.id === deliverableId);
           if (targetDeliv) {
             syncDeliverableToSupabase(phaseId, targetDeliv);
@@ -1244,8 +2119,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return {
             ...p,
             keyDeliverables: updatedDeliverables,
-            progressPercentage: pct,
-            status: newStatus
+            adviserSignOff: isAllDone ? p.adviserSignOff : false,
+            signedOffDate: isAllDone ? p.signedOffDate : undefined
           };
         }
         return p;
@@ -1255,52 +2130,105 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     toast.success('Milestone deliverable checklist updated');
   };
 
-  const signOffPhase = (phaseId: number) => {
-    if (!isOwner && !isAdviser) return;
-    const today = new Date().toISOString().split('T')[0];
-    let signedPhase: MilestonePhase | undefined;
-    setPhases(prev =>
-      prev.map(p => {
-        if (p.id === phaseId) {
-          const nextSignOff = !p.adviserSignOff;
-          const updated = { ...p, adviserSignOff: nextSignOff, signedOffDate: nextSignOff ? today : undefined };
-          syncPhaseToSupabase(updated);
-          if (nextSignOff) {
-            signedPhase = updated;
-          }
-          return updated;
-        }
-        return p;
-      })
-    );
-    if (signedPhase) {
-      notifyDiscordMilestone(signedPhase, currentMember.name);
+  const signOffPhase = (
+    phaseId: number,
+    consultationDetails?: {
+      consultationNotes?: string;
+      proofUrl?: string;
+      consultationDate?: string;
+      adviserName?: string;
     }
-    logActivity('granted formal adviser sign-off', `Phase ${phaseId}`);
-    toast.success('Milestone Endorsed', {
-      description: `Formal sign-off completed for Phase ${phaseId}`
+  ) => {
+    const isLeaderOrManager = isOwner || currentMember.role === 'leader' || currentMember.permissionLevel === 'owner' || isAdviser;
+    if (!isLeaderOrManager) {
+      toast.error('Project Leader, Manager, or Faculty Adviser permission required for phase sign-off.');
+      return;
+    }
+
+    const target = phases.find(phase => phase.id === phaseId);
+    if (!target) return;
+
+    if (phaseId !== project.currentPhaseId) {
+      toast.info('Only the active phase can be signed off.');
+      return;
+    }
+
+    if (target.adviserSignOff) {
+      toast.info('This phase already has formal adviser sign-off.');
+      return;
+    }
+
+    const phaseGate = getPhaseSignOffGate(target, tasks);
+    if (!phaseGate.isReady) {
+      toast.warning('Phase gate is incomplete', {
+        description: phaseGate.missing.join(' • ')
+      });
+      return;
+    }
+
+    const adviserName = consultationDetails?.adviserName || project.adviser?.name || 'Faculty Adviser';
+    const dateUsed = consultationDetails?.consultationDate || new Date().toISOString().split('T')[0];
+    const notesUsed = consultationDetails?.consultationNotes || 'Approved during faculty consultation.';
+    const signOffLabel = isAdviser 
+      ? `${currentMember.name} (Faculty Adviser)`
+      : `${adviserName} (Verified via Consultation by ${currentMember.name})`;
+
+    const updated: MilestonePhase = {
+      ...target,
+      adviserSignOff: true,
+      signedOffDate: dateUsed,
+      signedOffBy: signOffLabel,
+      consultationNotes: notesUsed,
+      proofUrl: consultationDetails?.proofUrl,
+      status: 'completed'
+    };
+    setPhases(prev => prev.map(phase => phase.id === phaseId ? updated : phase));
+    void syncPhaseToSupabase(updated);
+    notifyDiscordMilestone(updated, currentMember.name);
+    logActivity(`recorded adviser consultation approval (${notesUsed.substring(0, 40)}...)`, `Phase ${phaseId}`);
+    toast.success('Adviser Consultation Approval Recorded', {
+      description: `${target.title} is formally approved and ready to advance.`
     });
   };
 
   const changeCurrentPhase = (phaseId: number) => {
-    if (!isOwner) return;
-    setProject(prev => {
-      const updated = { ...prev, currentPhaseId: phaseId };
-      return updated;
-    });
-    setPhases(prev =>
-      prev.map(p => {
-        if (p.id === phaseId && p.status === 'upcoming') {
-          const updated = { ...p, status: 'in_progress' as const };
-          syncPhaseToSupabase(updated);
-          return updated;
-        }
-        return p;
-      })
-    );
-    logActivity('changed active project phase', `Phase ${phaseId}`);
-    toast.info('Active Milestone Updated', {
-      description: `Switched focus to Phase ${phaseId}`
+    if (!isOwner) {
+      toast.error('Only the project lead can advance the active phase.');
+      return;
+    }
+
+    const currentIndex = phases.findIndex(phase => phase.id === project.currentPhaseId);
+    const targetIndex = phases.findIndex(phase => phase.id === phaseId);
+    const currentPhase = phases[currentIndex];
+    const targetPhase = phases[targetIndex];
+    if (!targetPhase) return;
+
+    if (phaseId === project.currentPhaseId) return;
+
+    const canStartFirstPhase = currentIndex === -1 && targetIndex === 0;
+    const canAdvanceSequentially = currentIndex >= 0 && targetIndex === currentIndex + 1 && currentPhase?.adviserSignOff;
+    if (!canStartFirstPhase && !canAdvanceSequentially) {
+      toast.info('Phase progression is gated', {
+        description: currentPhase?.adviserSignOff
+          ? 'Advance one signed-off phase at a time.'
+          : 'The current phase needs formal adviser sign-off before the next phase can begin.'
+      });
+      return;
+    }
+
+    const updatedProject: CapstoneProject = { ...project, currentPhaseId: phaseId };
+    const updatedPhase: MilestonePhase = {
+      ...targetPhase,
+      status: 'in_progress'
+    };
+    setProject(updatedProject);
+    setProjects(prev => prev.map(savedProject => savedProject.id === activeProjectId ? updatedProject : savedProject));
+    setPhases(prev => prev.map(phase => phase.id === phaseId ? updatedPhase : phase));
+    void syncProjectToSupabase(updatedProject);
+    void syncPhaseToSupabase(updatedPhase);
+    logActivity('advanced active project phase', `Phase ${phaseId}`);
+    toast.success('Next phase activated', {
+      description: `The team can now scope work for ${targetPhase.title}.`
     });
   };
 
@@ -1370,24 +2298,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deletePhase = (phaseId: number) => {
     if (!isOwner) return;
-    if (phases.length <= 1) {
-      toast.error('Cannot delete the only remaining project phase.');
-      return;
-    }
 
-    setPhases(prev => prev.filter(p => p.id !== phaseId));
+    const remainingPhases = phases.filter(p => p.id !== phaseId);
+    setPhases(remainingPhases);
     deletePhaseFromSupabase(phaseId);
 
     // If deleted phase was current active phase, advance/fallback currentPhaseId
     if (project.currentPhaseId === phaseId) {
-      const remaining = phases.filter(p => p.id !== phaseId);
-      const nextActiveId = remaining[0]?.id || 1;
+      const nextActiveId = remainingPhases[0]?.id || 0;
       setProject(prev => ({ ...prev, currentPhaseId: nextActiveId }));
     }
 
     // Reassign any tasks mapped to this phase
-    const remainingPhases = phases.filter(p => p.id !== phaseId);
-    const fallbackPhaseId = remainingPhases[0]?.id || 1;
+    const fallbackPhaseId = remainingPhases[0]?.id || 0;
     setTasks(prev => prev.map(t => {
       if (t.phaseId === phaseId) {
         const reassigned = { ...t, phaseId: fallbackPhaseId };
@@ -1397,8 +2320,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return t;
     }));
 
-    logActivity('removed milestone phase', `Phase ${phaseId}`);
-    toast.success(`Phase ${phaseId} deleted.`);
+    logActivity('removed milestone phase', `Phase ID ${phaseId}`);
+    toast.success(`Milestone phase removed.`);
   };
 
   const addDeliverable = (phaseId: number, title: string, requiredForDefense = true) => {
@@ -1415,7 +2338,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setPhases(prev => prev.map(p => {
       if (p.id === phaseId) {
-        const updated = [...p.keyDeliverables, newDeliverable];
+        const updated = [...(p.keyDeliverables || []), newDeliverable];
         const completedCount = updated.filter(d => d.completed).length;
         const pct = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : 0;
         return {
@@ -1435,7 +2358,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!isOwner) return;
     setPhases(prev => prev.map(p => {
       if (p.id === phaseId) {
-        const updated = p.keyDeliverables.filter(d => d.id !== deliverableId);
+        const updated = (p.keyDeliverables || []).filter(d => d.id !== deliverableId);
         const completedCount = updated.filter(d => d.completed).length;
         const pct = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : 0;
         return {
@@ -1455,7 +2378,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!isOwner) return;
     setPhases(prev => prev.map(p => {
       if (p.id === phaseId) {
-        const updated = p.keyDeliverables.map(d => {
+        const updated = (p.keyDeliverables || []).map(d => {
           if (d.id === deliverableId) {
             const upd = { ...d, ...updates };
             syncDeliverableToSupabase(phaseId, upd);
@@ -1473,6 +2396,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Chapter Handlers
   const toggleChapterSection = (chapterId: number, sectionId: string) => {
+    let updatedChapter: ManuscriptChapter | null = null;
     setChapters(prev =>
       prev.map(ch => {
         if (ch.id === chapterId) {
@@ -1489,21 +2413,41 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return s;
           });
           const allCompleted = updatedSections.every(s => s.completed);
-          return {
+          updatedChapter = {
             ...ch,
             sections: updatedSections,
             adviserStatus: allCompleted ? 'approved' : 'in_review',
             lastUpdated: new Date().toISOString().split('T')[0]
           };
+          return updatedChapter;
         }
         return ch;
       })
     );
+    if (updatedChapter) {
+      void syncChapterToSupabase(updatedChapter);
+    }
     logActivity('updated chapter section status', `Chapter ${chapterId}`);
   };
 
   const updateChapter = (chapterId: number, updates: Partial<ManuscriptChapter>) => {
-    setChapters(prev => prev.map(ch => (ch.id === chapterId ? { ...ch, ...updates } : ch)));
+    let updatedChapter: ManuscriptChapter | null = null;
+    setChapters(prev =>
+      prev.map(ch => {
+        if (ch.id === chapterId) {
+          updatedChapter = {
+            ...ch,
+            ...updates,
+            lastUpdated: new Date().toISOString().split('T')[0]
+          };
+          return updatedChapter;
+        }
+        return ch;
+      })
+    );
+    if (updatedChapter) {
+      void syncChapterToSupabase(updatedChapter);
+    }
     logActivity('updated manuscript details', `Chapter ${chapterId}`);
   };
 
@@ -1611,7 +2555,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (p.id === phaseId) {
           const updated = {
             ...p,
-            keyDeliverables: p.keyDeliverables.map(d => {
+            keyDeliverables: (p.keyDeliverables || []).map(d => {
               if (d.id === deliverableId) {
                 const list = d.attachments ? [...d.attachments, att] : [att];
                 const updatedDeliv = { ...d, attachments: list };
@@ -1640,7 +2584,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (p.id === phaseId) {
         const updated = {
           ...p,
-          keyDeliverables: p.keyDeliverables.map(d => {
+          keyDeliverables: (p.keyDeliverables || []).map(d => {
             if (d.id === deliverableId) {
               const target = d.attachments?.find(a => a.id === attachmentId);
               if (target) deleteAttachmentFile(target.url);
@@ -1662,13 +2606,459 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     toast.info('Deliverable Proof Removed');
   };
 
+  const createProject = async (payload: NewProjectPayload): Promise<CapstoneProject> => {
+    const userProfile = {
+      id: currentMember?.id || (githubUser?.login ? `usr_github_${githubUser.login.toLowerCase()}` : 'usr_owner_main'),
+      name: currentMember?.name || githubUser?.name || 'Project Manager',
+      email: currentMember?.email || githubUser?.email || 'manager@capstoneflow.app',
+      avatar: currentMember?.avatar || (githubUser?.avatar_url ? githubUser.avatar_url : undefined),
+      githubUsername: currentMember?.githubUsername || githubUser?.login,
+      roleTitle: currentMember?.roleTitle || 'Project Manager / Lead Architect'
+    };
+
+    const { project: newProj, phases: newPhases, tasks: newTasks, members: newMembers } = createNewProjectInstance(payload, userProfile);
+
+    // Update active project ref FIRST to prevent race conditions with any active Realtime sync
+    activeProjectIdRef.current = newProj.id;
+
+    // Save project-scoped state to localStorage
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_project`, JSON.stringify(newProj));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_tasks`, JSON.stringify(newTasks));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_phases`, JSON.stringify(newPhases));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_members`, JSON.stringify(newMembers));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_revisions`, JSON.stringify([]));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_standups`, JSON.stringify([]));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_chapters`, JSON.stringify(initialChapters));
+    localStorage.setItem(`capstoneflow_proj_${newProj.id}_activity`, JSON.stringify([]));
+
+    // Also update global fallback keys so they don't hold stale data from the previous project
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_project`, JSON.stringify(newProj));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_tasks`, JSON.stringify(newTasks));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_phases`, JSON.stringify(newPhases));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_members`, JSON.stringify(newMembers));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_revisions`, JSON.stringify([]));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_standups`, JSON.stringify([]));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_chapters`, JSON.stringify(initialChapters));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_activity`, JSON.stringify([]));
+    localStorage.setItem(activeProjectKeyFor(getIdentityKey()), newProj.id);
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, userProfile.id);
+
+    // Register project in projects list & switch active project
+    setCurrentMemberId(userProfile.id);
+    setProjects(prev => [newProj, ...prev]);
+    setActiveProjectId(newProj.id);
+    setProject(newProj);
+
+    // Update active workspace states
+    setTasks(newTasks);
+    setPhases(newPhases);
+    setMembers(newMembers);
+    setRevisions([]);
+    setStandups([]);
+    setChapters(initialChapters);
+    setActivityLogs([]);
+
+    if (isSupabaseConfigured()) {
+      try {
+        await syncProjectToSupabase(newProj);
+        await seedSupabaseDatabase({
+          project: newProj,
+          members: newMembers,
+          phases: newPhases,
+          tasks: newTasks,
+          standups: [],
+          revisions: []
+        });
+      } catch (e) {
+        console.warn('Supabase project seeding completed with local state preserved:', e);
+      }
+    }
+
+    logActivity('provisioned new cloud project', newProj.title);
+    return newProj;
+  };
+
+  const switchProject = async (targetId: string, projectOverride?: CapstoneProject) => {
+    let target = projectOverride || projects.find(p => p.id === targetId);
+    if (!target && isSupabaseConfigured()) {
+      const cloudData = await fetchAllDataFromSupabase(targetId);
+      target = cloudData?.project || undefined;
+    }
+    if (!target) return;
+
+    activeProjectIdRef.current = targetId;
+    setActiveProjectId(targetId);
+    setProject(target);
+
+    // Save project registry if this is a newly opened cloud project
+    setProjects(prev => {
+      if (prev.some(p => p.id === targetId)) {
+        return prev.map(p => p.id === targetId ? target! : p);
+      }
+      const next = [target!, ...prev];
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_projects_list`, JSON.stringify(next));
+      return next;
+    });
+
+    if (isSupabaseConfigured()) {
+      try {
+        const cloudData = await fetchAllDataFromSupabase(targetId);
+        if (cloudData) {
+          if (cloudData.project) {
+            setProject(cloudData.project);
+          }
+          if (cloudData.tasks && cloudData.tasks.length > 0) {
+            setTasks(cloudData.tasks);
+            localStorage.setItem(`capstoneflow_proj_${targetId}_tasks`, JSON.stringify(cloudData.tasks));
+          }
+          if (cloudData.phases && cloudData.phases.length > 0) {
+            setPhases(cloudData.phases);
+            localStorage.setItem(`capstoneflow_proj_${targetId}_phases`, JSON.stringify(cloudData.phases));
+          }
+          if (cloudData.members && cloudData.members.length > 0) {
+            setMembers(cloudData.members);
+            localStorage.setItem(`capstoneflow_proj_${targetId}_members`, JSON.stringify(cloudData.members));
+          }
+          if (cloudData.chapters && cloudData.chapters.length > 0) {
+            setChapters(cloudData.chapters);
+            localStorage.setItem(`capstoneflow_proj_${targetId}_chapters`, JSON.stringify(cloudData.chapters));
+          }
+          if (cloudData.revisions) {
+            setRevisions(cloudData.revisions);
+            localStorage.setItem(`capstoneflow_proj_${targetId}_revisions`, JSON.stringify(cloudData.revisions));
+          }
+          if (cloudData.standups) {
+            setStandups(cloudData.standups);
+            localStorage.setItem(`capstoneflow_proj_${targetId}_standups`, JSON.stringify(cloudData.standups));
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase switch project cloud hydration warning:', e);
+      }
+    } else {
+      // Load project-scoped state from localStorage for offline mode
+      const savedTasks = localStorage.getItem(`capstoneflow_proj_${targetId}_tasks`);
+      const savedPhases = localStorage.getItem(`capstoneflow_proj_${targetId}_phases`);
+      const savedMembers = localStorage.getItem(`capstoneflow_proj_${targetId}_members`);
+      const savedRevisions = localStorage.getItem(`capstoneflow_proj_${targetId}_revisions`);
+      const savedStandups = localStorage.getItem(`capstoneflow_proj_${targetId}_standups`);
+      const savedChapters = localStorage.getItem(`capstoneflow_proj_${targetId}_chapters`);
+      const savedActivity = localStorage.getItem(`capstoneflow_proj_${targetId}_activity`);
+
+      const fallbackMembers: TeamMember[] = target.collaborators && target.collaborators.length > 0
+        ? target.collaborators.map((c, i) => ({
+            id: c.id || (c.permission === 'owner' ? (currentMemberId || 'usr_owner_main') : `m_${i}`),
+            name: c.name,
+            email: `${c.name.toLowerCase().replace(/\s+/g, '.')}@university.edu`,
+            role: (c.permission === 'adviser' ? 'adviser' : c.permission === 'editor' || c.permission === 'owner' ? 'leader' : 'developer') as Role,
+            roleTitle: c.role || (c.permission === 'owner' ? 'Project Manager / Lead Architect' : 'Software Contributor'),
+            permissionLevel: (c.permission || (i === 0 ? 'owner' : 'member')) as PermissionLevel,
+            avatar: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=10b981&color=fff&bold=true`,
+            color: '#10b981'
+          }))
+        : initialMembers;
+
+      const loadedTasks: Task[] = savedTasks ? JSON.parse(savedTasks) : [];
+      const loadedPhases: MilestonePhase[] = savedPhases ? JSON.parse(savedPhases) : [];
+      let loadedMembers: TeamMember[] = savedMembers ? JSON.parse(savedMembers) : fallbackMembers;
+
+      // Guarantee that the active user / owner account is always present
+      const hasOwner = loadedMembers.some(m => m.permissionLevel === 'owner' || m.id === currentMemberId || m.id === 'usr_owner_main');
+      if (!hasOwner) {
+        const activeOwner: TeamMember = {
+          id: currentMemberId || 'usr_owner_main',
+          name: githubUser?.name || 'Project Manager',
+          email: githubUser?.email || 'manager@capstoneflow.app',
+          role: 'leader',
+          roleTitle: 'Project Manager / Lead Architect',
+          permissionLevel: 'owner',
+          avatar: githubUser?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(githubUser?.name || 'Project Manager')}&background=10b981&color=fff&bold=true`,
+          githubUsername: githubUser?.login,
+          color: '#10b981'
+        };
+        loadedMembers = [activeOwner, ...loadedMembers];
+      }
+      const loadedRevisions: RevisionItem[] = savedRevisions ? JSON.parse(savedRevisions) : [];
+      const loadedStandups: StandupEntry[] = savedStandups ? JSON.parse(savedStandups) : [];
+      const loadedChapters: ManuscriptChapter[] = savedChapters ? JSON.parse(savedChapters) : initialChapters;
+      const loadedActivity: ActivityLog[] = savedActivity ? JSON.parse(savedActivity) : [];
+
+      setTasks(loadedTasks);
+      setPhases(loadedPhases);
+      setMembers(loadedMembers);
+      setRevisions(loadedRevisions);
+      setStandups(loadedStandups);
+      setChapters(loadedChapters);
+      setActivityLogs(loadedActivity);
+    }
+
+    localStorage.setItem(activeProjectKeyFor(getIdentityKey()), targetId);
+
+    toast.success(`Active Workspace: ${cleanProjectTitle(target.title) || target.title}`, {
+      description: `Target Defense: ${target.targetDefenseDate || '2026-11-30'} • Status: ${target.status?.toUpperCase() || 'ACTIVE'}`
+    });
+  };
+
+  const joinProjectByInvite = async (
+    inviteCodeOrId: string, 
+    role: Role = 'developer',
+    permission: 'owner' | 'editor' | 'member' | 'adviser' | 'viewer' = 'member',
+    explicitTokenPayload?: InviteTokenPayload
+  ): Promise<boolean> => {
+    const raw = inviteCodeOrId.trim();
+    if (!raw) {
+      toast.error('Invalid Invite Code', { description: 'Please enter a valid project invite code or URL.' });
+      return false;
+    }
+
+    // Extract & verify token if present in raw string or current window location
+    let tokenPayload: InviteTokenPayload | undefined = explicitTokenPayload;
+    if (!tokenPayload) {
+      const tokenCandidate = raw.includes('token=') 
+        ? raw 
+        : typeof window !== 'undefined' && window.location.href.includes('token=')
+        ? window.location.href
+        : raw.startsWith('cft_')
+        ? raw
+        : '';
+      if (tokenCandidate) {
+        try {
+          const verified = await verifyInviteToken(tokenCandidate);
+          if (verified.valid && verified.payload) {
+            tokenPayload = verified.payload;
+          }
+        } catch {
+          // continue to other lookup methods
+        }
+      }
+    }
+
+    // Auto-detect role from token payload or URL params
+    let resolvedRole: Role = role;
+    let resolvedPermission = permission;
+
+    if (tokenPayload) {
+      resolvedRole = tokenPayload.role === 'adviser' ? 'adviser' : tokenPayload.role === 'editor' ? 'leader' : tokenPayload.role === 'viewer' ? 'researcher' : 'developer';
+      resolvedPermission = tokenPayload.role as any;
+    } else {
+      const lower = raw.toLowerCase();
+      if (lower.includes('role=adviser') || lower.includes('role=faculty') || lower.endsWith('-adviser') || lower.endsWith('-faculty')) {
+        resolvedRole = 'adviser';
+        resolvedPermission = 'adviser';
+      } else if (lower.includes('role=editor') || lower.includes('role=lead') || lower.endsWith('-editor') || lower.endsWith('-lead')) {
+        resolvedRole = 'leader';
+        resolvedPermission = 'editor';
+      } else if (lower.includes('role=viewer') || lower.includes('role=observer') || lower.endsWith('-viewer') || lower.endsWith('-observer')) {
+        resolvedRole = 'researcher';
+        resolvedPermission = 'viewer';
+      }
+    }
+
+    const match = raw.match(/CF-[A-Z0-9]{4,12}/i);
+    const cleanCode = (tokenPayload?.pid && tokenPayload.pid.startsWith('CF-'))
+      ? tokenPayload.pid.toUpperCase()
+      : match 
+      ? match[0].toUpperCase() 
+      : raw
+          .replace(/^https?:\/\/[^/]+\/#projects\?join=/i, '')
+          .replace(/^https?:\/\/[^/]+\/\?join=/i, '')
+          .replace(/^#projects\?join=/i, '')
+          .replace(/^.*join=/i, '')
+          .split('&')[0]
+          .split('-ADVISER')[0]
+          .split('-FACULTY')[0]
+          .split('-EDITOR')[0]
+          .split('-LEAD')[0]
+          .split('-DEVELOPER')[0]
+          .split('-VIEWER')[0]
+          .split('-OBSERVER')[0]
+          .replace(/[\[\]]/g, '')
+          .trim()
+          .toUpperCase();
+
+    if (!cleanCode) {
+      toast.error('Invalid Invite Code', { description: 'Please enter a valid project invite code or URL.' });
+      return false;
+    }
+
+    const pureCode = cleanCode.replace(/^CF-/, '');
+
+    const mergeCollaborator = (p: CapstoneProject): CapstoneProject => {
+      const exists = (p.collaborators || []).some(c => c.id === currentMember.id);
+      const updatedCollaborators = exists
+        ? p.collaborators
+        : [...(p.collaborators || []), { id: currentMember.id, name: currentMember.name, avatar: currentMember.avatar, role: currentMember.roleTitle, permission: resolvedPermission }];
+      return {
+        ...p,
+        userRole: resolvedPermission,
+        isOwner: false,
+        collaborators: updatedCollaborators,
+        memberCount: (updatedCollaborators || []).length
+      };
+    };
+
+    // 1. Own registry (projects this account created or joined before)
+    const localTarget = projects.find(p => {
+      const pInvite = (p.inviteCode || '').toUpperCase();
+      const pId = (p.id || '').toUpperCase();
+      return pInvite === cleanCode ||
+             pInvite === `CF-${cleanCode}` ||
+             (pureCode.length >= 4 && pInvite.replace(/^CF-/, '') === pureCode) ||
+             pId === cleanCode ||
+             pId === raw.trim();
+    });
+
+    if (localTarget) {
+      const merged = mergeCollaborator(localTarget);
+      setProjects(prev => prev.map(p => p.id === localTarget.id ? merged : p));
+      await switchProject(localTarget.id, merged);
+      toast.success(`Joined Project: ${cleanProjectTitle(localTarget.title) || localTarget.title}`, {
+        description: `Access Level: ${resolvedPermission.toUpperCase()} • Role: ${resolvedRole.toUpperCase()}`
+      });
+      return true;
+    }
+
+    // 2. Cloud lookup — the single source of truth for invite codes
+    if (isSupabaseConfigured()) {
+      const cloudProj = await fetchProjectByInviteCode(cleanCode);
+      if (cloudProj) {
+        const updatedCloudProj = mergeCollaborator(cloudProj);
+        setProjects(prev => {
+          const filtered = prev.filter(p => p.id !== cloudProj.id);
+          const next = [updatedCloudProj, ...filtered];
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_projects_list`, JSON.stringify(next));
+          return next;
+        });
+        await joinCloudProject(cloudProj.id, currentMember);
+        await switchProject(cloudProj.id, updatedCloudProj);
+        toast.success(`Joined Cloud Project: ${cleanProjectTitle(cloudProj.title) || cloudProj.title}`, {
+          description: `Live synchronization active • Access Level: ${resolvedPermission.toUpperCase()}`
+        });
+        return true;
+      }
+    }
+
+    // 3. Honest failure — never fabricate a placeholder workspace. If the
+    // owner's workspace is not in the cloud yet, the owner must re-open the
+    // invite modal (which seeds it); joining an empty reconstruction would
+    // only produce a ghost shell with no tasks or progress.
+    toast.error('No Project Found', {
+      description: `No workspace matches invite code ${cleanCode} yet. Ask the project owner to open their Invite Collaborators modal once (this syncs the workspace), then try again.`
+    });
+    return false;
+  };
+
+  const deleteProject = (targetId: string) => {
+    const target = projects.find(p => p.id === targetId);
+
+    // Authorization check: Only Project Leader or Manager can delete
+    const roleTitle = (currentMember?.roleTitle || '').toLowerCase();
+    const userRole = (currentRole || currentMember?.role || target?.userRole || 'member').toLowerCase();
+    const userCanDelete = Boolean(
+      isOwner ||
+      target?.isOwner !== false ||
+      currentMember?.permissionLevel === 'owner' ||
+      userRole === 'owner' ||
+      userRole === 'leader' ||
+      /manager|lead|architect|director|head|admin/i.test(roleTitle)
+    );
+
+    if (!userCanDelete) {
+      toast.error('Permission Denied', {
+        description: 'Only the Project Leader or Project Manager is authorized to delete this workspace.'
+      });
+      return;
+    }
+
+    if (projects.length <= 1) {
+      toast.error('Cannot Delete Sole Project', {
+        description: 'Workspace must maintain at least one active capstone project.'
+      });
+      return;
+    }
+    const remaining = projects.filter(p => p.id !== targetId);
+    setProjects(remaining);
+    void deleteProjectFromSupabase(targetId);
+
+    // Clean up scoped localStorage keys
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_project`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_tasks`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_phases`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_members`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_revisions`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_standups`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_chapters`);
+    localStorage.removeItem(`capstoneflow_proj_${targetId}_activity`);
+
+    // Switch to first remaining project if deleted was active
+    if (activeProjectId === targetId && remaining.length > 0) {
+      switchProject(remaining[0].id);
+    }
+    const cleanTitle = cleanProjectTitle(target?.title || '') || target?.title || 'Project';
+    toast.success(`Project "${cleanTitle}" Deleted`);
+  };
+
+  const pauseProject = (targetId: string) => {
+    setProjects(prev => prev.map(p => p.id === targetId ? { ...p, status: 'paused' } : p));
+    toast.info('Project Paused', { description: 'Project boards archived in paused mode.' });
+  };
+
+  const resumeProject = (targetId: string) => {
+    setProjects(prev => prev.map(p => p.id === targetId ? { ...p, status: 'active' } : p));
+    toast.success('Project Resumed', { description: 'Compute instance & Realtime channels online.' });
+  };
+
+  const regenerateProjectKey = (targetId: string, keyType: 'anon' | 'service_role') => {
+    void targetId;
+    toast.info(`${keyType === 'anon' ? 'Anon public' : 'Service role'} keys are managed by Supabase`, {
+      description: 'Open Supabase Project Settings to rotate credentials. Keys are never generated or stored in the browser.'
+    });
+  };
+
   const updateProjectInfo = (updates: Partial<CapstoneProject>) => {
-    setProject(prev => ({ ...prev, ...updates }));
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        const updated = { ...p, ...updates };
+        syncProjectToSupabase(updated);
+        return updated;
+      }
+      return p;
+    }));
+
+    setProject(prev => {
+      const updated = { ...prev, ...updates };
+      syncProjectToSupabase(updated);
+      return updated;
+    });
+
+    if (updates.adviser) {
+      setMembers(prev => prev.map(m => {
+        if (m.role === 'adviser') {
+          const updatedAdv: TeamMember = {
+            ...m,
+            name: updates.adviser?.name || m.name,
+            email: updates.adviser?.email || m.email,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(updates.adviser?.name || m.name)}&background=6366f1&color=fff&bold=true`
+          };
+          syncMemberToSupabase(updatedAdv);
+          return updatedAdv;
+        }
+        return m;
+      }));
+    }
+
     logActivity('updated project settings', updates.title || 'Settings');
   };
 
   const resetData = () => {
-    setProject(initialProject);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_tasks`);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_phases`);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_members`);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_chapters`);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_revisions`);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_standups`);
+    localStorage.removeItem(`capstoneflow_proj_${activeProjectId}_activity`);
+
     setMembers(initialMembers);
     setTasks(initialTasks);
     setPhases(initialPhases);
@@ -1676,15 +3066,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRevisions(initialRevisions);
     setStandups(initialStandups);
     setActivityLogs(initialActivityLogs);
-    setGithubUser(null);
     setGithubCommits([]);
     setGithubPRs([]);
-    localStorage.clear();
+    toast.success('Active Project Board Reset', { description: 'All boards for this project reset to initial clean state.' });
   };
 
   const exportDataJSON = () => {
     const fullData = {
       project,
+      projects,
       members,
       tasks,
       phases,
@@ -1702,6 +3092,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const data = JSON.parse(jsonStr);
       if (data.project) {
         if (data.project) setProject(data.project);
+        if (data.projects) setProjects(data.projects);
         if (data.members) setMembers(data.members);
         if (data.tasks) setTasks(data.tasks);
         if (data.phases) setPhases(data.phases);
@@ -1712,6 +3103,26 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return true;
       }
       return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const syncToSupabaseSilent = async (): Promise<boolean> => {
+    if (!isSupabaseConfigured()) return false;
+    try {
+      const success = await seedSupabaseDatabase({
+        project,
+        members,
+        phases,
+        tasks,
+        standups,
+        revisions
+      });
+      if (success) {
+        setIsDatabaseConnected(true);
+      }
+      return success;
     } catch {
       return false;
     }
@@ -1743,10 +3154,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return success;
   };
 
+  const isMemberOnline = (memberId: string): boolean => {
+    if (memberId === currentMemberId || memberId === currentMember.id) return true;
+    const found = onlineUsers.find(u => u.memberId === memberId);
+    if (found) {
+      if (!found.onlineAt) return true;
+      const ageMs = Date.now() - new Date(found.onlineAt).getTime();
+      return ageMs < 25000;
+    }
+    return false;
+  };
+
   return (
     <ProjectContext.Provider
       value={{
         project,
+        projects,
+        activeProjectId,
+        createProject,
+        joinProjectByInvite,
+        switchProject,
+        deleteProject,
+        pauseProject,
+        resumeProject,
+        regenerateProjectKey,
         members,
         tasks,
         phases,
@@ -1755,11 +3186,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         standups,
         activityLogs,
         currentMember,
-        currentRole,
+        currentRole: currentMember.role,
         theme,
         searchQuery,
         filterCategory,
         isDatabaseConnected,
+        isWorkspaceLoading,
         syncToSupabase,
         isAuthenticated,
         loginUser,
@@ -1768,6 +3200,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         githubCommits,
         githubPRs,
         isGitHubConnected: !!githubUser,
+        isAutoTracking,
+        isSyncingGitHub,
+        lastGitHubSyncTime,
+        toggleAutoTracking,
+        onlineUsers,
+        isMemberOnline,
         isOwner,
         isAdviser,
         isMember,
@@ -1790,12 +3228,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setGitHubRepo,
         syncGitHubData,
         addTask,
+        retryDiscordTicket,
         updateTask,
         deleteTask,
         claimTask,
         releaseTask,
         resolveTask,
         reviewTask,
+        approveTaskAdviserReview,
         closeTask,
         loadTemplateTickets,
         rebuildDatabase,
@@ -1841,4 +3281,3 @@ export const useProject = () => {
   }
   return context;
 };
-

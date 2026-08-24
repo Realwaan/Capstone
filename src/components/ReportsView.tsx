@@ -41,6 +41,10 @@ export const ReportsView: React.FC = () => {
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review');
   const resolvedRevisions = revisions.filter(r => r.status === 'resolved' || r.status === 'verified');
   const currentPhase = phases.find(p => p.id === project.currentPhaseId) || phases[0];
+  const currentPhaseIndex = phases.findIndex(p => p.id === project.currentPhaseId);
+  const activePhaseName = currentPhase 
+    ? (currentPhase.title.startsWith('Phase') ? currentPhase.title.split(':')[0].trim() : `Phase ${currentPhaseIndex >= 0 ? currentPhaseIndex + 1 : 1}`)
+    : 'No Phase';
 
   const handleGenerateAIReport = async () => {
     setIsGeneratingAI(true);
@@ -86,10 +90,10 @@ export const ReportsView: React.FC = () => {
 # ${reportTitle}
 **Project:** ${project.title}
 **Team:** ${project.teamName}
-**Adviser:** ${project.adviser.name}
+**Adviser:** ${project.adviser?.name || 'Faculty Adviser'}
 **Date:** ${new Date().toISOString().split('T')[0]}
 **Target Defense:** ${project.targetDefenseDate}
-**Overall Progress:** ${project.overallProgress}% (Phase ${project.currentPhaseId})
+**Overall Progress:** ${project.overallProgress}% (${currentPhase ? currentPhase.title : 'No Phase'})
 
 ---
 ### 1. Key Accomplishments This Period
@@ -101,7 +105,7 @@ ${inProgressTasks.map(t => `- [/] **${t.title}** - Due: ${t.dueDate}`).join('\n'
 
 ---
 ### 3. Milestone Phases & Deliverables
-${phases.map(p => `- **Phase ${p.id} (${p.title}):** ${p.progressPercentage}% complete - Status: ${p.status.toUpperCase()}`).join('\n')}
+${phases.length > 0 ? phases.map(p => `- **${p.title}:** ${p.progressPercentage}% complete - Status: ${p.status.toUpperCase()}`).join('\n') : '- No milestone phases configured.'}
 
 ---
 ### 4. Adviser Revision Matrix Status
@@ -218,7 +222,7 @@ ${phases.map(p => `- **Phase ${p.id} (${p.title}):** ${p.progressPercentage}% co
                   {project.title}
                 </h1>
                 <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '2px' }}>
-                  {project.teamName} • Department of Computer Science & Engineering
+                  {project.teamName} • {project.adviser?.department || 'Academic Governance'}
                 </div>
               </div>
 
@@ -237,11 +241,11 @@ ${phases.map(p => `- **Phase ${p.id} (${p.title}):** ${p.progressPercentage}% co
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
               <div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Capstone Adviser</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>{project.adviser.name}</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>{project.adviser?.name || 'Faculty Adviser'}</div>
               </div>
               <div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Current Milestone</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>Phase {project.currentPhaseId} ({currentPhase.progressPercentage}%)</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>{currentPhase ? `${activePhaseName} (${currentPhase.progressPercentage}%)` : 'None'}</div>
               </div>
               <div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Target Final Defense</div>
@@ -334,7 +338,7 @@ ${phases.map(p => `- **Phase ${p.id} (${p.title}):** ${p.progressPercentage}% co
               <div>
                 <div style={{ height: '50px' }}></div>
                 <div style={{ borderTop: '1px solid #475569', paddingTop: '6px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>{project.adviser.name}</div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>{project?.adviser?.name || 'Faculty Adviser'}</div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Faculty Adviser / Panel Chair</div>
                 </div>
               </div>
@@ -406,7 +410,7 @@ ${phases.map(p => `- **Phase ${p.id} (${p.title}):** ${p.progressPercentage}% co
               justifyContent: 'space-between'
             }}>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Synthesized for Adviser <strong>{project.adviser.name}</strong>
+                Synthesized for Adviser <strong>{project?.adviser?.name || 'Faculty Adviser'}</strong>
               </span>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button

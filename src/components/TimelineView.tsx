@@ -26,7 +26,8 @@ import {
   Paperclip,
   Download,
   UploadCloud,
-  FileText
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { formatFileSize } from '../lib/supabaseStorage';
 
@@ -68,6 +69,13 @@ export const TimelineView: React.FC = () => {
   // Delete Phase State
   const [phaseToDelete, setPhaseToDelete] = useState<MilestonePhase | null>(null);
 
+  // Consultation Sign-Off Modal State
+  const [phaseToSignOff, setPhaseToSignOff] = useState<MilestonePhase | null>(null);
+  const [viewSignOffPhase, setViewSignOffPhase] = useState<MilestonePhase | null>(null);
+  const [signOffDate, setSignOffDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [signOffNotes, setSignOffNotes] = useState('');
+  const [signOffProofUrl, setSignOffProofUrl] = useState('');
+
   // Inline Add Deliverable State (keyed by phaseId)
   const [addingDeliverableForPhaseId, setAddingDeliverableForPhaseId] = useState<number | null>(null);
   const [inlineDeliverableTitle, setInlineDeliverableTitle] = useState('');
@@ -76,13 +84,28 @@ export const TimelineView: React.FC = () => {
   // Edit Deliverable State
   const [editingDeliverable, setEditingDeliverable] = useState<{ phaseId: number; deliverableId: string; title: string; requiredForDefense: boolean } | null>(null);
 
-  const handleSignOff = (phaseId: number) => {
-    signOffPhase(phaseId);
+  const openSignOffModal = (phase: MilestonePhase) => {
+    setPhaseToSignOff(phase);
+    setSignOffDate(new Date().toISOString().split('T')[0]);
+    setSignOffNotes('');
+    setSignOffProofUrl('');
+  };
+
+  const handleConfirmSignOff = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phaseToSignOff) return;
+    signOffPhase(phaseToSignOff.id, {
+      consultationDate: signOffDate,
+      consultationNotes: signOffNotes.trim() || 'Approved during faculty consultation meeting.',
+      proofUrl: signOffProofUrl.trim() || undefined,
+      adviserName: project.adviser?.name || 'Faculty Adviser'
+    });
     confetti({
       particleCount: 100,
       spread: 70,
       origin: { y: 0.6 }
     });
+    setPhaseToSignOff(null);
   };
 
   // Open Edit Modal
@@ -168,119 +191,129 @@ export const TimelineView: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <div className="view-container animate-fade-in" style={{ padding: '24px 32px 100px 32px' }}>
+      {/* Top Header & Defense Target */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Academic Milestones & Gantt Roadmap</h2>
-            {isOwner && (
-              <span className="badge badge-primary" style={{ fontSize: '0.65rem', gap: '4px' }}>
-                <Crown size={12} />
-                <span>Lead Management Active</span>
-              </span>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <Milestone size={24} style={{ color: 'var(--primary)' }} />
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
+              Milestone Roadmap & Defense Gates
+            </h1>
           </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Sequential defense gates, customizable deliverable checklists, and institutional adviser sign-offs
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', margin: 0 }}>
+            Structured milestone execution roadmap with gate criteria and faculty adviser sign-off.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {isOwner && (
             <button 
               onClick={() => {
-                const nextId = phases.length > 0 ? Math.max(...phases.map(p => p.id)) + 1 : 1;
-                setNewTitle(`Phase ${nextId}: `);
+                const nextNumber = phases.length + 1;
+                setNewTitle(`Phase ${nextNumber}: `);
                 setNewDescription('');
                 setNewTargetDate(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
                 setNewDeliverablesList([]);
                 setIsCreateModalOpen(true);
               }}
               className="btn btn-primary btn-sm"
-              style={{ gap: '6px' }}
+              style={{ gap: '6px', height: '32px' }}
             >
               <Plus size={15} />
               <span>Create Phase</span>
             </button>
           )}
 
-          <span className="badge badge-primary" style={{ padding: '6px 12px', fontSize: '0.78rem' }}>
+          <span className="badge badge-primary" style={{ padding: '6px 14px', fontSize: '0.78rem', gap: '6px' }}>
             <Award size={14} />
-            Target Final Defense: {project.targetDefenseDate}
+            Target Final Defense: <strong>{project.targetDefenseDate}</strong>
           </span>
         </div>
       </div>
 
       {/* Visual Phase Flow Bar (Gantt Progress) */}
-      <div className="card" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '0.98rem', fontWeight: 700 }}>
-            Capstone Phased Lifecycle ({phases.length} Total Phases)
+      <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+          <h3 style={{ fontSize: '0.94rem', fontWeight: 700, margin: 0 }}>
+            Capstone Phased Lifecycle ({phases.length} Total {phases.length === 1 ? 'Phase' : 'Phases'})
           </h3>
-          {isOwner && (
+          {isOwner && phases.length > 0 && (
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Click any phase below to set it as active
+              Click any phase below to set as active
             </span>
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(160px, 1fr))`, gap: '12px' }}>
-          {phases.map(phase => {
-            const isCurrent = phase.id === project.currentPhaseId;
-            return (
-              <div 
-                key={phase.id}
-                onClick={() => {
-                  if (isOwner && !isCurrent) changeCurrentPhase(phase.id);
-                }}
-                style={{
-                  background: isCurrent ? 'var(--primary-light)' : 'var(--bg-elevated)',
-                  border: '1px solid',
-                  borderColor: isCurrent ? 'var(--primary)' : 'var(--border-card)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  position: 'relative',
-                  cursor: isOwner && !isCurrent ? 'pointer' : 'default',
-                  transition: 'all 0.15s ease'
-                }}
-                title={isOwner && !isCurrent ? 'Click to set this phase as active' : undefined}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isCurrent ? 'var(--text-accent)' : 'var(--text-muted)' }}>
-                    PHASE {phase.id}
-                  </span>
-                  <span className={`badge ${phase.status === 'completed' ? 'badge-success' : isCurrent ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: '0.62rem' }}>
-                    {phase.status}
-                  </span>
-                </div>
+        {phases.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(170px, 1fr))`, gap: '12px' }}>
+            {phases.map((phase, idx) => {
+              const isCurrent = phase.id === project.currentPhaseId;
+              const phaseBadgeName = phase.title.startsWith('Phase')
+                ? (phase.title.includes(':') ? phase.title.split(':')[0].trim() : `Phase ${idx + 1}`)
+                : `Phase ${idx + 1}`;
+              const phaseSubTitle = phase.title.includes(':')
+                ? phase.title.split(':').slice(1).join(':').trim()
+                : phase.title;
 
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', minHeight: '38px', lineHeight: 1.25 }}>
-                  {phase.title.split(':')[1]?.trim() || phase.title}
-                </div>
+              return (
+                <div 
+                  key={phase.id}
+                  onClick={() => {
+                    if (isOwner && !isCurrent) changeCurrentPhase(phase.id);
+                  }}
+                  style={{
+                    background: isCurrent ? 'var(--primary-light)' : 'var(--bg-elevated)',
+                    border: '1px solid',
+                    borderColor: isCurrent ? 'var(--primary)' : 'var(--border-card)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    position: 'relative',
+                    cursor: isOwner && !isCurrent ? 'pointer' : 'default',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={isOwner && !isCurrent ? 'Click to set this phase as active' : undefined}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isCurrent ? 'var(--text-accent)' : 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      {phaseBadgeName}
+                    </span>
+                    <span className={`badge ${phase.status === 'completed' ? 'badge-success' : isCurrent ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: '0.62rem' }}>
+                      {phase.status}
+                    </span>
+                  </div>
 
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  Target: {phase.targetDate}
-                </div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', minHeight: '38px', lineHeight: 1.25 }}>
+                    {phaseSubTitle}
+                  </div>
 
-                <div className="progress-bar-container" style={{ height: '6px' }}>
-                  <div className="progress-bar-fill" style={{ width: `${phase.progressPercentage}%` }} />
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    Target: {phase.targetDate}
+                  </div>
+
+                  <div className="progress-bar-container" style={{ height: '6px' }}>
+                    <div className="progress-bar-fill" style={{ width: `${phase.progressPercentage}%`, background: phase.progressPercentage === 100 ? '#10b981' : 'var(--primary)' }} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)' }}>
+            No milestone phases configured. Click "+ Create Phase" above to add your first milestone phase.
+          </div>
+        )}
       </div>
 
       {/* Detailed Phase Cards & Deliverables */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {phases.map(phase => {
+        {phases.map((phase, idx) => {
           const isCurrent = phase.id === project.currentPhaseId;
-          const completedDeliverables = phase.keyDeliverables.filter(d => d.completed).length;
-          const totalDeliverables = phase.keyDeliverables.length;
+          const completedDeliverables = (phase.keyDeliverables || []).filter(d => d.completed).length;
+          const totalDeliverables = (phase.keyDeliverables || []).length;
 
           return (
             <div 
@@ -288,16 +321,17 @@ export const TimelineView: React.FC = () => {
               className="card"
               style={{
                 borderColor: isCurrent ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-card)',
-                background: isCurrent ? 'var(--bg-card)' : 'var(--bg-card)',
+                background: 'var(--bg-card)',
+                padding: '24px',
                 position: 'relative'
               }}
             >
-              {/* Phase Top Banner */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+              {/* Phase Top Header Row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                   <div style={{
-                    width: '38px',
-                    height: '38px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '10px',
                     background: phase.status === 'completed' ? '#10b981' : isCurrent ? 'var(--primary)' : 'rgba(148, 163, 184, 0.2)',
                     color: isCurrent || phase.status === 'completed' ? '#061109' : 'var(--text-muted)',
@@ -305,15 +339,15 @@ export const TimelineView: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 800,
-                    fontSize: '1rem',
+                    fontSize: '1.05rem',
                     flexShrink: 0
                   }}>
-                    {phase.status === 'completed' ? <Check size={20} /> : phase.id}
+                    {phase.status === 'completed' ? <Check size={22} /> : (idx + 1)}
                   </div>
 
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{phase.title}</h3>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>{phase.title}</h3>
                       <span className={`badge ${phase.status === 'completed' ? 'badge-success' : isCurrent ? 'badge-primary' : 'badge-neutral'}`}>
                         {phase.status}
                       </span>
@@ -328,11 +362,11 @@ export const TimelineView: React.FC = () => {
                       )}
                     </div>
 
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '680px' }}>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '780px', margin: '4px 0 6px 0' }}>
                       {phase.description}
                     </p>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                       <Calendar size={13} />
                       <span>Target Milestone Date: <strong>{phase.targetDate}</strong></span>
                     </div>
@@ -346,24 +380,22 @@ export const TimelineView: React.FC = () => {
                       <button
                         onClick={() => openEditModal(phase)}
                         className="btn btn-secondary btn-sm"
-                        style={{ padding: '4px 8px', height: '28px', fontSize: '0.75rem', gap: '4px' }}
+                        style={{ padding: '4px 10px', height: '28px', fontSize: '0.75rem', gap: '4px' }}
                         title="Edit Phase Title, Target Date, or Description"
                       >
                         <Edit3 size={13} />
                         <span>Edit Phase</span>
                       </button>
 
-                      {phases.length > 1 && (
-                        <button
-                          onClick={() => setPhaseToDelete(phase)}
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '4px 8px', height: '28px', fontSize: '0.75rem', color: 'var(--danger)', gap: '4px' }}
-                          title="Delete this milestone phase"
-                        >
-                          <Trash2 size={13} />
-                          <span>Delete</span>
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setPhaseToDelete(phase)}
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '4px 10px', height: '28px', fontSize: '0.75rem', color: 'var(--danger)', gap: '4px' }}
+                        title="Delete this milestone phase"
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   )}
 
@@ -371,49 +403,135 @@ export const TimelineView: React.FC = () => {
                   {phase.adviserSignOff ? (
                     <div style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
                       borderRadius: 'var(--radius-md)',
-                      padding: '6px 12px',
-                      color: 'var(--success)'
+                      padding: '8px 12px',
+                      color: 'var(--success)',
+                      maxWidth: '360px'
                     }}>
-                      <ShieldCheck size={16} />
-                      <div style={{ fontSize: '0.74rem', lineHeight: 1.2 }}>
-                        <div style={{ fontWeight: 800 }}>Formal Sign-Off</div>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{phase.signedOffDate}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <ShieldCheck size={16} style={{ flexShrink: 0, color: '#10b981' }} />
+                          <span style={{ fontWeight: 800, fontSize: '0.78rem', color: '#10b981' }}>
+                            Consultation Endorsed
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setViewSignOffPhase(phase)}
+                          className="btn btn-ghost btn-xs"
+                          style={{ fontSize: '0.66rem', height: '20px', padding: '0 6px', color: 'var(--primary)' }}
+                          title="View consultation directives and details"
+                        >
+                          View Directives
+                        </button>
                       </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        {phase.signedOffBy || 'Faculty Adviser'} • {phase.signedOffDate}
+                      </div>
+                      {phase.consultationNotes && (
+                        <div style={{
+                          fontSize: '0.68rem',
+                          color: 'var(--text-muted)',
+                          fontStyle: 'italic',
+                          background: 'rgba(0, 0, 0, 0.2)',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          marginTop: '2px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          "{phase.consultationNotes}"
+                        </div>
+                      )}
+                      {phase.proofUrl && (
+                        <a
+                          href={phase.proofUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.66rem',
+                            color: 'var(--primary)',
+                            marginTop: '2px',
+                            textDecoration: 'none'
+                          }}
+                        >
+                          <ExternalLink size={10} />
+                          <span>View Signed Rubric / Proof</span>
+                        </a>
+                      )}
                     </div>
                   ) : (isOwner || isAdviser) ? (
                     <button 
-                      onClick={() => handleSignOff(phase.id)}
+                      type="button"
+                      onClick={() => openSignOffModal(phase)}
                       className="btn btn-secondary btn-sm"
-                      style={{ gap: '6px', height: '28px' }}
-                      title="Grant formal milestone sign-off for this phase"
+                      style={{ gap: '6px', height: '32px', borderColor: 'var(--primary)' }}
+                      title="Record adviser consultation sign-off"
                     >
                       <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
-                      <span>{isOwner ? 'Lead Sign-Off' : 'Adviser Sign-Off'}</span>
+                      <span>Record Consultation Sign-Off</span>
                     </button>
                   ) : (
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Clock size={13} />
-                      <span>Awaiting Sign-Off</span>
+                    <div 
+                      style={{ 
+                        fontSize: '0.72rem', 
+                        color: 'var(--text-muted)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '5px',
+                        padding: '4px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)'
+                      }}
+                      title="Only Faculty Adviser or Project Lead can endorse milestone completion"
+                    >
+                      <Clock size={12} />
+                      <span>Adviser Gate Pending</span>
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* Full-Width Milestone Completion Progress Bar */}
+              <div style={{ marginTop: '16px', marginBottom: '20px', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Milestone Completion Progress
+                  </span>
+                  <span style={{ fontSize: '0.76rem', color: phase.progressPercentage === 100 ? 'var(--success)' : 'var(--text-accent)', fontWeight: 800 }}>
+                    {phase.progressPercentage}% Complete
+                  </span>
+                </div>
+                <div className="progress-bar-container" style={{ height: '8px', borderRadius: '4px', width: '100%' }}>
+                  <div 
+                    className="progress-bar-fill" 
+                    style={{ 
+                      width: `${phase.progressPercentage}%`,
+                      background: phase.progressPercentage === 100 ? '#10b981' : 'var(--primary)'
+                    }} 
+                  />
+                </div>
+              </div>
+
               {/* Deliverable Checklist Grid */}
-              <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: '18px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     Gate Deliverables Checklist ({completedDeliverables}/{totalDeliverables} Verified)
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-accent)' }}>
-                      {phase.progressPercentage}% Complete
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: completedDeliverables === totalDeliverables && totalDeliverables > 0 ? 'var(--success)' : 'var(--text-accent)' }}>
+                      {totalDeliverables > 0 ? Math.round((completedDeliverables / totalDeliverables) * 100) : 0}% Verified
                     </span>
 
                     {isOwner && (
@@ -431,6 +549,17 @@ export const TimelineView: React.FC = () => {
                       </button>
                     )}
                   </div>
+                </div>
+
+                {/* Deliverables Checklist Mini Progress Bar */}
+                <div className="progress-bar-container" style={{ height: '4px', marginBottom: '14px', borderRadius: '2px', width: '100%' }}>
+                  <div 
+                    className="progress-bar-fill" 
+                    style={{ 
+                      width: `${totalDeliverables > 0 ? (completedDeliverables / totalDeliverables) * 100 : 0}%`,
+                      background: completedDeliverables === totalDeliverables && totalDeliverables > 0 ? '#10b981' : 'var(--primary)'
+                    }} 
+                  />
                 </div>
 
                 {/* Inline Add Deliverable Form */}
@@ -488,7 +617,7 @@ export const TimelineView: React.FC = () => {
 
                 {/* Deliverables List */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
-                  {phase.keyDeliverables.map(item => (
+                  {(phase.keyDeliverables || []).map(item => (
                     <div 
                       key={item.id}
                       style={{
@@ -612,6 +741,34 @@ export const TimelineView: React.FC = () => {
             </div>
           );
         })}
+
+        {phases.length === 0 && (
+          <div className="card" style={{ padding: '40px 24px', textAlign: 'center', background: 'var(--bg-card)', border: '1px dashed var(--border-card)' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+              <Milestone size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-primary)' }}>No Milestone Phases Configured</h3>
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', maxWidth: '460px', margin: '0 auto 20px auto' }}>
+              Milestone phases organize your defense roadmap gates, deliverables, and chapter progress. Create your first phase to begin.
+            </p>
+            {isOwner && (
+              <button 
+                onClick={() => {
+                  setNewTitle('Phase 1: ');
+                  setNewDescription('');
+                  setNewTargetDate(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
+                  setNewDeliverablesList([]);
+                  setIsCreateModalOpen(true);
+                }}
+                className="btn btn-primary btn-sm"
+                style={{ gap: '6px' }}
+              >
+                <Plus size={15} />
+                <span>Create Phase 1</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* CREATE PHASE MODAL */}
@@ -731,7 +888,7 @@ export const TimelineView: React.FC = () => {
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Edit3 size={18} style={{ color: 'var(--primary)' }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Phase {phaseToEdit.id}</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Phase: {phaseToEdit.title}</h3>
               </div>
               <button onClick={() => setPhaseToEdit(null)} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}>
                 <X size={16} />
@@ -807,7 +964,7 @@ export const TimelineView: React.FC = () => {
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Delete Phase {phaseToDelete.id}?</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Delete Phase?</h3>
             </div>
 
             <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -815,7 +972,7 @@ export const TimelineView: React.FC = () => {
                 Are you sure you want to delete <strong>{phaseToDelete.title}</strong>?
               </p>
               <div style={{ background: 'var(--danger-bg)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.76rem', color: 'var(--danger)' }}>
-                Any tasks mapped to this phase will automatically be reassigned to the primary phase to prevent lost progress.
+                Any tasks mapped to this phase will automatically be reassigned to prevent lost progress.
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
@@ -881,6 +1038,191 @@ export const TimelineView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* RECORD ADVISER CONSULTATION SIGN-OFF MODAL */}
+      {phaseToSignOff && (
+        <div className="modal-backdrop" onClick={() => setPhaseToSignOff(null)} style={{ zIndex: 1200 }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Record Adviser Consultation Sign-Off</h3>
+              </div>
+              <button onClick={() => setPhaseToSignOff(null)} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmSignOff} style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                padding: '10px 14px',
+                fontSize: '0.78rem',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.4
+              }}>
+                <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: '3px' }}>
+                  Consultation Verification Protocol (Alternative 1)
+                </div>
+                Faculty advisers do not need to log into the platform. Record the directives and approvals agreed upon during your consultation meeting, defense hearing, or paper review.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="input-label">Milestone Phase</label>
+                  <input
+                    type="text"
+                    value={phaseToSignOff.title}
+                    disabled
+                    className="input-field"
+                    style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Faculty Adviser</label>
+                  <input
+                    type="text"
+                    value={project.adviser?.name || 'Faculty Adviser'}
+                    disabled
+                    className="input-field"
+                    style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label">Consultation Date *</label>
+                <input
+                  type="date"
+                  value={signOffDate}
+                  onChange={e => setSignOffDate(e.target.value)}
+                  className="input-field"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="input-label">Consultation Directives & Feedback Summary *</label>
+                <textarea
+                  value={signOffNotes}
+                  onChange={e => setSignOffNotes(e.target.value)}
+                  placeholder="e.g. Discussed with adviser during weekly sync. Adviser approved Chapter 3 system architecture and verified all required milestone deliverables."
+                  className="input-field"
+                  rows={3}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="input-label">Proof / Signed Rubric URL (Optional)</label>
+                <input
+                  type="url"
+                  value={signOffProofUrl}
+                  onChange={e => setSignOffProofUrl(e.target.value)}
+                  placeholder="https://drive.google.com/... (Google Drive scan, signed consultation log, or rubric)"
+                  className="input-field"
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                <button type="button" onClick={() => setPhaseToSignOff(null)} className="btn btn-ghost">
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ gap: '6px' }}>
+                  <ShieldCheck size={16} />
+                  <span>Confirm Milestone Sign-Off</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW CONSULTATION DIRECTIVES MODAL */}
+      {viewSignOffPhase && (
+        <div className="modal-backdrop" onClick={() => setViewSignOffPhase(null)} style={{ zIndex: 1200 }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={20} style={{ color: '#10b981' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Adviser Consultation Record</h3>
+              </div>
+              <button onClick={() => setViewSignOffPhase(null)} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Milestone Phase
+                </span>
+                <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: '2px' }}>
+                  {viewSignOffPhase.title}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Endorsed By</span>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: '2px' }}>
+                    {viewSignOffPhase.signedOffBy || 'Faculty Adviser'}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Consultation Date</span>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: '2px' }}>
+                    {viewSignOffPhase.signedOffDate}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Adviser Directives & Meeting Notes</span>
+                <div style={{
+                  fontSize: '0.85rem',
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.5,
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px',
+                  marginTop: '4px'
+                }}>
+                  {viewSignOffPhase.consultationNotes || 'Endorsed and verified via faculty consultation meeting.'}
+                </div>
+              </div>
+
+              {viewSignOffPhase.proofUrl && (
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Verification Proof / Rubric</span>
+                  <div style={{ marginTop: '4px' }}>
+                    <a
+                      href={viewSignOffPhase.proofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary btn-sm"
+                      style={{ gap: '6px', width: '100%', justifyContent: 'center' }}
+                    >
+                      <ExternalLink size={14} />
+                      <span>Open Consultation Proof Link</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button type="button" onClick={() => setViewSignOffPhase(null)} className="btn btn-primary">
+                  Close Record
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

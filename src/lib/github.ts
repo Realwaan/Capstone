@@ -1,8 +1,8 @@
 import { GitHubCommit, GitHubPullRequest } from '../types';
 
-export const DEFAULT_GITHUB_REPO_URL = 'https://github.com/Realwaan/USCCE';
-export const DEFAULT_GITHUB_OWNER = 'Realwaan';
-export const DEFAULT_GITHUB_REPO = 'USCCE';
+export const DEFAULT_GITHUB_REPO_URL = import.meta.env.VITE_GITHUB_REPO_URL || '';
+export const DEFAULT_GITHUB_OWNER = '';
+export const DEFAULT_GITHUB_REPO = '';
 
 const GITHUB_TOKEN_KEY = 'capstoneflow_github_token';
 
@@ -30,7 +30,7 @@ export interface ParsedRepo {
 
 export const parseGitHubRepoUrl = (url?: string): ParsedRepo | null => {
   if (!url || !url.trim()) {
-    return { owner: DEFAULT_GITHUB_OWNER, repo: DEFAULT_GITHUB_REPO };
+    return null;
   }
   const clean = url.trim().replace(/\.git$/, '');
 
@@ -52,7 +52,7 @@ export const parseGitHubRepoUrl = (url?: string): ParsedRepo | null => {
     return { owner: sshMatch[1], repo: sshMatch[2] };
   }
 
-  return { owner: DEFAULT_GITHUB_OWNER, repo: DEFAULT_GITHUB_REPO };
+  return null;
 };
 
 const getHeaders = (): HeadersInit => {

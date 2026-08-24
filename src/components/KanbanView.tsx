@@ -3,6 +3,7 @@ import { useProject } from '../context/ProjectContext';
 import { Task, TaskStatus, TaskPriority, TaskCategory } from '../types';
 import { CustomDropdown } from './CustomDropdown';
 import { TaskTicketModal } from './TaskTicketModal';
+import { PriorityBadge, PRIORITY_DROPDOWN_OPTIONS, CATEGORY_DROPDOWN_OPTIONS, FILTER_CATEGORY_DROPDOWN_OPTIONS } from './PriorityBadge';
 import { 
   Plus, 
   Search, 
@@ -20,6 +21,7 @@ import {
   Sparkles,
   LayoutGrid,
   List,
+  Layers,
   CheckCircle2,
   ChevronRight,
   UserCheck,
@@ -29,7 +31,6 @@ import {
   Workflow
 } from 'lucide-react';
 import { AIUXWorkflowsModal } from './AIUXWorkflowsModal';
-import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '../utils/time';
 
@@ -68,16 +69,40 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
     getTaskProgressPercent,
     currentMember,
     isOwner,
-    canDeleteTasks
+    canDeleteTasks,
+    isMemberOnline,
+    loadTemplateTickets
   } = useProject();
 
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'board' | 'list'>(() => {
+    const saved = localStorage.getItem('capstoneflow_kanban_view');
+    return saved === 'list' ? 'list' : 'board';
+  });
+  const [filterCategory, setFilterCategory] = useState<string>(() => {
+    return localStorage.getItem('capstoneflow_kanban_category') || 'all';
+  });
+  const [selectedAssignee, setSelectedAssignee] = useState<string>(() => {
+    return localStorage.getItem('capstoneflow_kanban_assignee') || 'all';
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [isWorkflowsOpen, setIsWorkflowsOpen] = useState<boolean>(false);
+
+  const handleSetViewMode = (mode: 'board' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('capstoneflow_kanban_view', mode);
+  };
+
+  const handleSetFilterCategory = (cat: string) => {
+    setFilterCategory(cat);
+    localStorage.setItem('capstoneflow_kanban_category', cat);
+  };
+
+  const handleSetSelectedAssignee = (assignee: string) => {
+    setSelectedAssignee(assignee);
+    localStorage.setItem('capstoneflow_kanban_assignee', assignee);
+  };
 
   // Quick Add State
   const [quickTitle, setQuickTitle] = useState('');
@@ -111,11 +136,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   const handleDrop = (e: React.DragEvent, targetStatus: TaskStatus) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('text/plain') || draggingTaskId;
-    if (taskId) {
+    if (taskId && targetStatus === 'todo') {
       moveTaskStatus(taskId, targetStatus);
-      if (targetStatus === 'done') {
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      }
     }
     setDraggingTaskId(null);
   };
@@ -135,6 +157,13 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
       storyPoints: 3,
       estimatedHours: 8,
       dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      acceptanceCriteria: [
+        {
+          id: `ac-${Date.now()}`,
+          text: `Implement ${quickTitle.trim()} and satisfy quality requirements`,
+          completed: false
+        }
+      ],
       subtasks: []
     });
 
@@ -143,12 +172,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   };
 
   const getNextStatus = (current: TaskStatus): TaskStatus | null => {
-    const order: TaskStatus[] = ['backlog', 'todo', 'in_progress', 'peer_review', 'adviser_review', 'done'];
-    const idx = order.indexOf(current);
-    if (idx >= 0 && idx < order.length - 1) {
-      return order[idx + 1];
-    }
-    return null;
+    return current === 'backlog' ? 'todo' : null;
   };
 
   const activeTicket = tasks.find(t => t.id === selectedTicketId) || null;
@@ -183,7 +207,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             padding: '2px' 
           }}>
             <button 
-              onClick={() => setViewMode('board')} 
+              onClick={() => handleSetViewMode('board')} 
               className={`btn btn-sm ${viewMode === 'board' ? 'btn-primary' : 'btn-ghost'}`}
               style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.76rem' }}
             >
@@ -191,7 +215,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
               <span>Board</span>
             </button>
             <button 
-              onClick={() => setViewMode('list')} 
+              onClick={() => handleSetViewMode('list')} 
               className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}
               style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.76rem' }}
             >
@@ -200,39 +224,51 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             </button>
           </div>
 
+          {/* Quick Scope Filter (All / My Tasks / Open to Claim) */}
+          <div style={{ 
+            display: 'flex', 
+            background: 'var(--bg-elevated)', 
+            border: '1px solid var(--border-card)', 
+            borderRadius: 'var(--radius-sm)', 
+            padding: '2px' 
+          }}>
+            <button 
+              onClick={() => handleSetSelectedAssignee('all')} 
+              className={`btn btn-sm ${selectedAssignee === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.74rem' }}
+              title="Show all team deliverables"
+            >
+              <Layers size={12} />
+              <span>All Tasks</span>
+            </button>
+            <button 
+              onClick={() => handleSetSelectedAssignee('mine')} 
+              className={`btn btn-sm ${selectedAssignee === 'mine' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.74rem' }}
+              title="Show only tasks claimed by me"
+            >
+              <UserCheck size={12} />
+              <span>My Tasks</span>
+            </button>
+            <button 
+              onClick={() => handleSetSelectedAssignee('unassigned')} 
+              className={`btn btn-sm ${selectedAssignee === 'unassigned' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.74rem' }}
+              title="Show open tasks available to claim"
+            >
+              <Sparkles size={12} />
+              <span>Open to Claim</span>
+            </button>
+          </div>
+
           {/* Category Filter */}
           <CustomDropdown
             value={filterCategory}
-            onChange={(val) => setFilterCategory(val)}
+            onChange={(val) => handleSetFilterCategory(val)}
             prefixIcon={Tag}
-            minWidth="140px"
-            size="sm"
-            options={[
-              { value: 'all', label: 'All Categories' },
-              { value: 'code', label: '💻 Feature & Code' },
-              { value: 'backend', label: '🔌 Backend & APIs' },
-              { value: 'frontend', label: '🎨 Frontend UI/UX' },
-              { value: 'database', label: '🗄️ Database & Schema' },
-              { value: 'testing', label: '🧪 Testing & QA' },
-              { value: 'devops', label: '🚀 DevOps & Infra' },
-              { value: 'architecture', label: '⚙️ Architecture' },
-              { value: 'docs', label: '📄 Tech Docs' }
-            ]}
-          />
-
-          {/* Assignee Filter */}
-          <CustomDropdown
-            value={selectedAssignee}
-            onChange={(val) => setSelectedAssignee(val)}
-            prefixIcon={User}
             minWidth="150px"
             size="sm"
-            options={[
-              { value: 'all', label: 'All Assignees' },
-              { value: 'mine', label: '👤 Assigned to Me' },
-              { value: 'unassigned', label: '✋ Unassigned (Open to Claim)' },
-              ...members.map(m => ({ value: m.id, label: m.name }))
-            ]}
+            options={FILTER_CATEGORY_DROPDOWN_OPTIONS}
           />
 
           {onOpenStandupModal && (
@@ -276,33 +312,38 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
       </div>
 
       {/* 2. Quick Task Capture Bar */}
+      {/* Quick Add Task Bar */}
       <form 
         onSubmit={handleQuickAdd}
+        className="quick-add-task-form"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
-          background: 'var(--bg-elevated)',
+          background: 'var(--bg-card)',
           border: '1px solid var(--border-card)',
           borderRadius: 'var(--radius-md)',
-          padding: '8px 12px',
+          padding: '8px 14px',
           boxShadow: 'var(--shadow-sm)',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          transition: 'all 160ms var(--ease-out)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px' }}>
-          <Plus size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+          <Plus size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
           <input 
             type="text" 
             placeholder="Quick add a new task (Type title and press Enter)..." 
             value={quickTitle}
             onChange={(e) => setQuickTitle(e.target.value)}
+            className="quick-add-task-input"
             style={{
               background: 'transparent',
               border: 'none',
               outline: 'none',
               color: 'var(--text-primary)',
-              fontSize: '0.84rem',
+              fontSize: '0.86rem',
+              fontWeight: 500,
               width: '100%'
             }}
           />
@@ -312,42 +353,72 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           <CustomDropdown<TaskCategory>
             value={quickCategory}
             onChange={(val) => setQuickCategory(val)}
-            minWidth="110px"
+            minWidth="115px"
             size="sm"
-            options={[
-              { value: 'code', label: 'Code' },
-              { value: 'backend', label: 'Backend' },
-              { value: 'frontend', label: 'Frontend' },
-              { value: 'database', label: 'Database' },
-              { value: 'testing', label: 'Testing' },
-              { value: 'devops', label: 'DevOps' },
-              { value: 'architecture', label: 'Arch' },
-              { value: 'docs', label: 'Docs' }
-            ]}
+            options={CATEGORY_DROPDOWN_OPTIONS}
           />
 
           <CustomDropdown<TaskPriority>
             value={quickPriority}
             onChange={(val) => setQuickPriority(val)}
-            minWidth="105px"
+            minWidth="115px"
             size="sm"
-            options={[
-              { value: 'urgent', label: '🔴 Urgent' },
-              { value: 'high', label: '🟠 High' },
-              { value: 'medium', label: '🟡 Medium' },
-              { value: 'low', label: '🟢 Low' }
-            ]}
+            options={PRIORITY_DROPDOWN_OPTIONS}
           />
 
           <button 
             type="submit" 
-            className="btn btn-secondary btn-sm"
-            style={{ height: '30px', padding: '0 12px', fontSize: '0.76rem' }}
+            className="btn btn-primary btn-sm"
+            style={{ height: '30px', padding: '0 14px', fontSize: '0.78rem', fontWeight: 700 }}
           >
             Add
           </button>
         </div>
       </form>
+
+      {/* Zero Tasks Onboarding Banner */}
+      {tasks.length === 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '14px 18px',
+          background: 'var(--bg-elevated)',
+          border: '1px dashed var(--border-card)',
+          borderRadius: 'var(--radius-md)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sparkles size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Your Task Matrix is ready
+              </div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                You haven't added any tasks yet. Quick add deliverables above, or load sample capstone sprint templates.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={loadTemplateTickets}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.74rem', height: '28px' }}
+            >
+              📥 Load Sample Templates
+            </button>
+            <button
+              onClick={onOpenNewTask}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.74rem', height: '28px' }}
+            >
+              <Plus size={13} />
+              <span>Create First Task</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 3. Board View (Responsive Smooth Scroll Track with Snap) */}
       {viewMode === 'board' ? (
@@ -367,8 +438,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             return (
               <div 
                 key={col.id}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, col.id)}
+                onDragOver={col.id === 'todo' ? handleDragOver : undefined}
+                onDrop={col.id === 'todo' ? (e) => handleDrop(e, col.id) : undefined}
                 style={{
                   flex: '0 0 min(86vw, 320px)',
                   minWidth: 'min(86vw, 300px)',
@@ -422,12 +493,13 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     const nextStatus = getNextStatus(task.status);
                     const isClaimedByMe = task.assigneeId === currentMember.id;
                     const isUnassigned = !task.assigneeId;
+                    const canStageByDrag = isOwner && task.status === 'backlog';
 
                     return (
                       <div 
                         key={task.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, task.id)}
+                        draggable={canStageByDrag}
+                        onDragStart={canStageByDrag ? (e) => handleDragStart(e, task.id) : undefined}
                         className="card stagger-item"
                         onClick={() => setSelectedTicketId(task.id)}
                         style={{
@@ -449,24 +521,20 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                               {task.category}
                             </span>
                             {isUnassigned ? (
-                              <span style={{ 
-                                color: 'var(--info)', 
+                              <span className="badge badge-info" style={{ 
                                 fontFamily: 'var(--font-mono)', 
                                 fontSize: '0.64rem', 
                                 fontWeight: 800,
-                                background: 'rgba(56, 189, 248, 0.1)',
                                 padding: '1px 5px',
                                 borderRadius: '3px'
                               }}>
                                 [OPEN]
                               </span>
                             ) : (
-                              <span style={{ 
-                                color: 'var(--primary)', 
+                              <span className="badge badge-primary" style={{ 
                                 fontFamily: 'var(--font-mono)', 
                                 fontSize: '0.64rem', 
                                 fontWeight: 800,
-                                background: 'rgba(94, 106, 210, 0.1)',
                                 padding: '1px 5px',
                                 borderRadius: '3px',
                                 overflow: 'hidden',
@@ -479,9 +547,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                             )}
                           </div>
 
-                          <span className={`badge ${task.priority === 'urgent' ? 'badge-danger' : task.priority === 'high' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: '0.62rem', flexShrink: 0 }}>
-                            {task.priority.toUpperCase()}
-                          </span>
+                          <PriorityBadge priority={task.priority} size="sm" />
                         </div>
 
                         {/* Layer 2: Title & Description */}
@@ -534,7 +600,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                             : progressPct;
                           return (
                             <div style={{ 
-                              background: 'rgba(0,0,0,0.12)', 
+                              background: 'var(--bg-elevated)', 
                               padding: '8px 10px', 
                               borderRadius: 'var(--radius-sm)',
                               border: '1px solid var(--border-subtle)' 
@@ -547,12 +613,12 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   {subtaskPct}%
                                 </span>
                               </div>
-                              <div className="progress-bar-container" style={{ height: '4px', background: 'rgba(255, 255, 255, 0.08)' }}>
+                              <div className="progress-bar-container" style={{ height: '5px', background: 'var(--border-subtle)' }}>
                                 <div 
                                   className="progress-bar-fill" 
                                   style={{ 
                                     width: `${subtaskPct}%`,
-                                    background: subtaskPct === 100 ? '#10b981' : subtaskPct >= 50 ? 'var(--primary)' : subtaskPct > 0 ? '#f59e0b' : 'transparent',
+                                    background: subtaskPct === 100 ? 'var(--success)' : subtaskPct >= 50 ? 'var(--primary)' : subtaskPct > 0 ? 'var(--warning)' : 'transparent',
                                     transition: 'width 240ms var(--ease-out)'
                                   }} 
                                 />
@@ -574,18 +640,34 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                             {assignee ? (
                               <>
-                                <img 
-                                  src={assignee.avatar} 
-                                  alt={assignee.name} 
-                                  style={{ 
-                                    width: '20px', 
-                                    height: '20px', 
-                                    borderRadius: '50%', 
-                                    border: isClaimedByMe ? '1.5px solid var(--primary)' : '1px solid var(--border-subtle)',
-                                    objectFit: 'cover',
-                                    flexShrink: 0
-                                  }} 
-                                />
+                                <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+                                  <img 
+                                    src={assignee.avatar} 
+                                    alt={assignee.name} 
+                                    style={{ 
+                                      width: '20px', 
+                                      height: '20px', 
+                                      borderRadius: '50%', 
+                                      border: isMemberOnline(assignee.id) ? '1.5px solid #10b981' : (isClaimedByMe ? '1.5px solid var(--primary)' : '1px solid var(--border-subtle)'),
+                                      objectFit: 'cover',
+                                      flexShrink: 0
+                                    }} 
+                                  />
+                                  {isMemberOnline(assignee.id) && (
+                                    <span 
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: '-1px',
+                                        right: '-1px',
+                                        width: '6px',
+                                        height: '6px',
+                                        borderRadius: '50%',
+                                        backgroundColor: '#10b981',
+                                        border: '1px solid var(--bg-surface)'
+                                      }}
+                                    />
+                                  )}
+                                </div>
                                 <span style={{ 
                                   color: isClaimedByMe ? 'var(--primary)' : 'var(--text-secondary)', 
                                   fontWeight: 600,
@@ -637,6 +719,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   claimTask(task.id);
                                 }}
                                 className="btn btn-primary btn-sm"
+                                disabled={currentMember.role === 'adviser' || currentMember.role === 'coordinator'}
                                 style={{
                                   padding: '0 10px',
                                   fontSize: '0.68rem',
@@ -644,12 +727,12 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   gap: '4px',
                                   borderRadius: 'var(--radius-sm)'
                                 }}
-                                title="Claim ticket (/claim)"
+                                title="Claim this active-phase task"
                               >
                                 <UserCheck size={11} />
-                                <span>/claim</span>
+                                <span>Claim</span>
                               </button>
-                            ) : isClaimedByMe && task.status !== 'done' && task.status !== 'peer_review' ? (
+                            ) : isClaimedByMe && task.status === 'in_progress' ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <button
                                   onClick={(e) => {
@@ -658,10 +741,10 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   }}
                                   className="btn btn-secondary btn-sm"
                                   style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', color: '#fbbf24', gap: '3px' }}
-                                  title="Submit for review (/resolved)"
+                                  title="Open the evidence checkpoint and submit for peer review"
                                 >
                                   <GitPullRequest size={11} />
-                                  <span>/resolved</span>
+                                  <span>Submit</span>
                                 </button>
                                 <button 
                                   onClick={(e) => {
@@ -675,18 +758,31 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   <UserMinus size={11} />
                                 </button>
                               </div>
-                            ) : (task.status === 'peer_review' || task.status === 'adviser_review') && (currentMember.role === 'qa' || currentMember.role === 'leader' || currentMember.role === 'adviser') ? (
+                            ) : task.status === 'peer_review' && task.assigneeId !== currentMember.id && (currentMember.role === 'qa' || currentMember.role === 'leader') ? (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  reviewTask(task.id, 'Approved via Kanban Quick Action');
+                                  reviewTask(task.id, 'Peer review completed via Kanban');
                                 }}
                                 className="btn btn-primary btn-sm"
                                 style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', background: 'var(--success)', borderColor: 'var(--success)', gap: '3px' }}
-                                title="Approve deliverable (/reviewed)"
+                                title="Complete independent peer review"
                               >
                                 <CheckCircle2 size={11} />
-                                <span>/reviewed</span>
+                                <span>Peer review</span>
+                              </button>
+                            ) : task.status === 'adviser_review' && (currentMember.role === 'adviser' || currentMember.role === 'leader' || isOwner) ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  reviewTask(task.id, currentMember.role === 'adviser' ? 'Faculty adviser approval recorded via Kanban' : 'Approved via Adviser Consultation');
+                                }}
+                                className="btn btn-primary btn-sm"
+                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', background: 'var(--success)', borderColor: 'var(--success)', gap: '3px' }}
+                                title={currentMember.role === 'adviser' ? "Record faculty adviser approval" : "Verify and approve per adviser consultation"}
+                              >
+                                <CheckCircle2 size={11} />
+                                <span>{currentMember.role === 'adviser' ? 'Approve' : 'Verify Consultation'}</span>
                               </button>
                             ) : null}
                           </div>
@@ -719,12 +815,11 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                               </button>
                             )}
 
-                            {nextStatus && (
+                            {nextStatus && isOwner && (
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   moveTaskStatus(task.id, nextStatus);
-                                  if (nextStatus === 'done') confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 } });
                                 }}
                                 className="btn btn-primary btn-sm"
                                 style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', gap: '3px' }}
@@ -755,8 +850,10 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                       gap: '4px',
                       marginTop: '8px'
                     }}>
-                      <span style={{ fontWeight: 600 }}>No active tasks</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Drag tasks here or click Add</span>
+                      <span style={{ fontWeight: 600 }}>No tasks in this stage</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {col.id === 'todo' && isOwner ? 'Stage backlog work here or add a scoped task' : 'Open a task to complete the next workflow gate'}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -808,17 +905,17 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     border: '1px solid var(--border-card)',
                     borderRadius: 'var(--radius-md)',
                     cursor: 'pointer',
-                    transition: 'all 140ms var(--ease-out)'
+                    transition: 'background-color 140ms var(--ease-out), border-color 140ms var(--ease-out)'
                   }}
                   className="dropdown-option-hover"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, paddingRight: '12px' }}>
                     {isUnassigned ? (
-                      <span style={{ color: 'var(--info)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', fontWeight: 800 }}>
+                      <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.64rem', fontWeight: 800 }}>
                         [OPEN]
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', fontWeight: 800 }}>
+                      <span className="badge badge-primary" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.64rem', fontWeight: 800 }}>
                         [CLAIMED]
                       </span>
                     )}
@@ -827,10 +924,11 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     </span>
                   </div>
 
-                  <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <span className={`badge tag-${task.category}`} style={{ fontSize: '0.64rem' }}>
                       {task.category}
                     </span>
+                    <PriorityBadge priority={task.priority} size="xs" />
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
