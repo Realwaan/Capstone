@@ -187,7 +187,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleQuickClaim = async (taskId: string, title: string) => {
     setClaimingTaskId(taskId);
     try {
-      const success = claimTask(taskId);
+      const success = await claimTask(taskId);
       if (success) {
         toast.success(`Claimed: "${title}"`, {
           description: `Assigned to ${currentMember.name} • Moved to In Progress`

@@ -145,7 +145,7 @@ interface ProjectContextType {
   retryDiscordTicket: (taskId: string) => Promise<boolean>;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
-  claimTask: (taskId: string) => boolean;
+  claimTask: (taskId: string) => Promise<boolean>;
   releaseTask: (taskId: string) => boolean;
   resolveTask: (taskId: string, prUrl?: string, note?: string) => boolean;
   reviewTask: (taskId: string, note?: string) => boolean;
@@ -1735,7 +1735,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const claimTask = (taskId: string): boolean => {
+  const claimTask = async (taskId: string): Promise<boolean> => {
     const target = tasks.find(t => t.id === taskId);
     if (!target) return false;
 
@@ -1786,8 +1786,51 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ticketEvents: target.ticketEvents ? [newEvent, ...target.ticketEvents] : [newEvent],
       updatedAt: new Date().toISOString().split('T')[0]
     };
+
+    // Optimistic apply — reverted below if the atomic claim loses the race.
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+
+    // Atomic claim: the conditional update (claim slot still empty AND task
+    // still open) makes the DATABASE pick the single winner when two teammates
+    // click claim at the same moment. The loser's UPDATE matches 0 rows.
+    let wonClaim = true;
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .update({
+            status: 'in_progress',
+            assignee_id: currentMember.id,
+            claimed_at: claimedAt,
+            claimed_by_username: claimerHandle,
+            ticket_events: updated.ticketEvents || [],
+            updated_at: claimedAt
+          })
+          .eq('id', taskId)
+          .is('claimed_by_username', null)
+          .in('status', ['backlog', 'todo'])
+          .select('id');
+
+        if (error) {
+          console.warn('[claim] atomic claim error (keeping optimistic claim):', error);
+        } else {
+          wonClaim = Array.isArray(data) && data.length > 0;
+        }
+      } catch (e) {
+        console.warn('[claim] atomic claim failed (keeping optimistic claim):', e);
+      }
+    }
+
+    if (!wonClaim) {
+      // Lost the race: revert to the open state. Realtime CDC lands the
+      // winner's claimed row momentarily.
+      setTasks(prev => prev.map(task => task.id === taskId ? target : task));
+      toast.warning('Ticket just got claimed', {
+        description: 'Someone on the team claimed this ticket first. The board will update in a moment.'
+      });
+      return false;
+    }
+
     logActivity('claimed ownership of task (/claim)', `[CLAIMED][${claimerHandle}] ${target.title}`);
     syncTaskStateToDiscord(updated, claimerHandle);
     toast.success('Ticket Claimed', {

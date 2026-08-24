@@ -155,18 +155,17 @@ export const TaskTicketModal: React.FC<TaskTicketModalProps> = ({
   }
 
   // 1. /claim
-  const handleClaim = () => {
+  const handleClaim = async () => {
     if (!task || claimBtnState === 'loading') return;
     setClaimBtnState('loading');
-    setTimeout(() => {
-      if (!claimTask(task.id)) {
-        setClaimBtnState('idle');
-        return;
-      }
-      setClaimBtnState('success');
-      confetti({ particleCount: 65, spread: 60, origin: { y: 0.6 } });
-      setTimeout(() => setClaimBtnState('idle'), 1000);
-    }, 320);
+    const claimed = await claimTask(task.id);
+    if (!claimed) {
+      setClaimBtnState('idle');
+      return;
+    }
+    setClaimBtnState('success');
+    confetti({ particleCount: 65, spread: 60, origin: { y: 0.6 } });
+    setTimeout(() => setClaimBtnState('idle'), 1000);
   };
 
   // 2. /unclaim
