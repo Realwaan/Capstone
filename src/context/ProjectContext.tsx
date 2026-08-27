@@ -3151,7 +3151,46 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setPhases(loadedPhases);
           localStorage.setItem(`capstoneflow_proj_${targetId}_phases`, JSON.stringify(loadedPhases));
 
-          const loadedMembers = (cloudData.members && cloudData.members.length > 0) ? cloudData.members : initialMembers;
+          let loadedMembers = (cloudData.members && cloudData.members.length > 0) ? cloudData.members : initialMembers;
+
+          if (githubUser) {
+            const userLogin = githubUser.login.toLowerCase();
+            const existingIdx = loadedMembers.findIndex(m =>
+              (m.githubUsername && m.githubUsername.toLowerCase() === userLogin) ||
+              m.id.toLowerCase() === `m_${userLogin}` ||
+              m.id === currentMemberId
+            );
+
+            if (existingIdx >= 0) {
+              const matched = loadedMembers[existingIdx];
+              const updatedMember = {
+                ...matched,
+                name: githubUser.name || githubUser.login,
+                avatar: githubUser.avatar_url || `https://github.com/${githubUser.login}.png`,
+                githubUsername: githubUser.login,
+                email: githubUser.email || matched.email
+              };
+              loadedMembers[existingIdx] = updatedMember;
+              setCurrentMemberId(matched.id);
+              void syncMemberToSupabase(updatedMember, targetId);
+            } else {
+              const newMember: TeamMember = {
+                id: `m_${userLogin}`,
+                name: githubUser.name || githubUser.login,
+                email: githubUser.email || `${userLogin}@student.edu`,
+                role: 'developer',
+                roleTitle: 'Software Developer',
+                permissionLevel: 'member',
+                avatar: githubUser.avatar_url || `https://github.com/${githubUser.login}.png`,
+                githubUsername: githubUser.login,
+                color: '#38bdf8'
+              };
+              loadedMembers = [...loadedMembers, newMember];
+              setCurrentMemberId(newMember.id);
+              void joinCloudProject(targetId, newMember);
+            }
+          }
+
           setMembers(loadedMembers);
           localStorage.setItem(`capstoneflow_proj_${targetId}_members`, JSON.stringify(loadedMembers));
 
@@ -3323,17 +3362,58 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const pureCode = cleanCode.replace(/^CF-/, '');
 
+    const resolveVisitorIdentity = (projId: string) => {
+      const visitorName = githubUser?.name || githubUser?.login || currentMember.name;
+      const visitorUsername = githubUser?.login || currentMember.githubUsername;
+      const visitorAvatar = githubUser?.avatar_url || (visitorUsername ? `https://github.com/${visitorUsername}.png` : currentMember.avatar);
+      const visitorEmail = githubUser?.email || currentMember.email;
+      const visitorId = visitorUsername 
+        ? `m_${visitorUsername.toLowerCase()}` 
+        : (currentMember.id === 'usr_owner_main' || currentMember.id === 'm_lead' ? `m_${projId}_${Date.now()}` : currentMember.id);
+
+      return { visitorName, visitorUsername, visitorAvatar, visitorEmail, visitorId };
+    };
+
     const mergeCollaborator = (p: CapstoneProject): CapstoneProject => {
-      const exists = (p.collaborators || []).some(c => c.id === currentMember.id);
+      const { visitorName, visitorUsername, visitorAvatar, visitorId } = resolveVisitorIdentity(p.id);
+
+      const existingCollaborators = p.collaborators || [];
+      const exists = existingCollaborators.some(c => 
+        c.id === visitorId || 
+        (visitorUsername && (c.name?.toLowerCase() === visitorUsername.toLowerCase() || c.name?.toLowerCase() === visitorName.toLowerCase()))
+      );
+
       const updatedCollaborators = exists
-        ? p.collaborators
-        : [...(p.collaborators || []), { id: currentMember.id, name: currentMember.name, avatar: currentMember.avatar, role: currentMember.roleTitle, permission: resolvedPermission }];
+        ? existingCollaborators.map(c => {
+            if (c.id === visitorId || (visitorUsername && (c.name?.toLowerCase() === visitorUsername.toLowerCase() || c.name?.toLowerCase() === visitorName.toLowerCase()))) {
+              return {
+                ...c,
+                id: visitorId,
+                name: visitorName,
+                avatar: visitorAvatar,
+                role: currentMember.roleTitle || c.role || 'Contributor',
+                permission: resolvedPermission
+              };
+            }
+            return c;
+          })
+        : [
+            ...existingCollaborators,
+            {
+              id: visitorId,
+              name: visitorName,
+              avatar: visitorAvatar,
+              role: currentMember.roleTitle || 'Contributor',
+              permission: resolvedPermission
+            }
+          ];
+
       return {
         ...p,
         userRole: resolvedPermission,
         isOwner: false,
         collaborators: updatedCollaborators,
-        memberCount: (updatedCollaborators || []).length
+        memberCount: updatedCollaborators.length
       };
     };
 
@@ -3371,18 +3451,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return next;
         });
 
-        // Ensure unique visitor member id so it doesn't overwrite the original project owner
+        const { visitorName, visitorUsername, visitorAvatar, visitorEmail, visitorId } = resolveVisitorIdentity(cloudProj.id);
+
         const visitorMember: TeamMember = {
           ...currentMember,
-          id: currentMember.id === 'usr_owner_main' || currentMember.id === 'm_lead'
-            ? `m_${cloudProj.id}_${Date.now()}`
-            : currentMember.id,
+          id: visitorId,
+          name: visitorName,
+          email: visitorEmail,
+          avatar: visitorAvatar,
+          githubUsername: visitorUsername,
           role: resolvedRole,
           roleTitle: currentMember.roleTitle || 'Software Contributor',
           permissionLevel: (resolvedPermission === 'adviser' ? 'adviser' : resolvedPermission === 'editor' || resolvedPermission === 'owner' ? 'owner' : 'member') as PermissionLevel
         };
 
         await joinCloudProject(cloudProj.id, visitorMember);
+        void syncProjectToSupabase(updatedCloudProj);
+        broadcastStructuralMutation(cloudProj.id);
+
         await switchProject(cloudProj.id, updatedCloudProj);
         toast.success(`Joined Cloud Project: ${cleanProjectTitle(cloudProj.title) || cloudProj.title}`, {
           description: `Live synchronization active • Access Level: ${resolvedPermission.toUpperCase()}`
@@ -3402,6 +3488,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const targetAdviserDept = tokenPayload?.adviserDepartment || targetOrg;
       const targetTeam = tokenPayload?.teamName || '';
       const projectId = `proj_${cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+      const { visitorName, visitorUsername, visitorAvatar, visitorEmail, visitorId } = resolveVisitorIdentity(projectId);
 
       const provisionedProject: CapstoneProject = {
         id: projectId,
@@ -3430,9 +3518,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         memberCount: 2,
         collaborators: [
           {
-            id: currentMember.id === 'usr_owner_main' || currentMember.id === 'm_lead' ? `m_${projectId}_${Date.now()}` : currentMember.id,
-            name: currentMember.name,
-            avatar: currentMember.avatar,
+            id: visitorId,
+            name: visitorName,
+            avatar: visitorAvatar,
             role: currentMember.roleTitle || 'Contributor',
             permission: resolvedPermission
           }
@@ -3441,7 +3529,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const visitorMember: TeamMember = {
         ...currentMember,
-        id: currentMember.id === 'usr_owner_main' || currentMember.id === 'm_lead' ? `m_${projectId}_${Date.now()}` : currentMember.id,
+        id: visitorId,
+        name: visitorName,
+        email: visitorEmail,
+        avatar: visitorAvatar,
+        githubUsername: visitorUsername,
         role: resolvedRole,
         roleTitle: currentMember.roleTitle || 'Software Contributor',
         permissionLevel: (resolvedPermission === 'adviser' ? 'adviser' : resolvedPermission === 'editor' || resolvedPermission === 'owner' ? 'owner' : 'member') as PermissionLevel
@@ -3460,6 +3552,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             chapters: initialChapters
           });
           await joinCloudProject(provisionedProject.id, visitorMember);
+          broadcastStructuralMutation(provisionedProject.id);
         } catch (e) {
           console.warn('[joinProjectByInvite] Auto-provision sync warning:', e);
         }
