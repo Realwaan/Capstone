@@ -175,6 +175,10 @@ CREATE TABLE IF NOT EXISTS standups (
     blockers TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 9. REALTIME PUBLICATION SETUP (Enable PostgreSQL Change Data Capture replication)
+-- Run this in Supabase SQL editor if you wish to enable native PostgreSQL CDC:
+ALTER PUBLICATION supabase_realtime ADD TABLE tasks, subtasks, standups, revisions, projects, milestone_phases, phase_deliverables, manuscript_chapters, chapter_sections;
 ```
 
 ---

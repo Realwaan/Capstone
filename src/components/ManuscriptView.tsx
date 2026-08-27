@@ -850,15 +850,15 @@ export const ManuscriptView: React.FC = () => {
               {project.subtitle || 'Capstone Technical Implementation Portfolio & Comprehensive Defense Dossier'}
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {project.organization || 'College of Computer Studies'} • Target Defense: {project.targetDefenseDate || '2026'}
+              {project.organization ? `${project.organization} ` : ''}{project.targetDefenseDate ? `• Target Defense: ${project.targetDefenseDate}` : ''}
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
             <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Faculty Adviser</div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--primary)', marginTop: '2px' }}>{project.adviser?.name || 'Faculty Adviser'}</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{project.adviser?.email || 'adviser@university.edu'}</div>
+              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--primary)', marginTop: '2px' }}>{project.adviser?.name || 'Unassigned'}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{project.adviser?.email || '—'}</div>
             </div>
 
             <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>

@@ -84,7 +84,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isEditGoalsOpen, setIsEditGoalsOpen] = useState(false);
   const [editTitle, setEditTitle] = useState(project?.title || '');
   const [editSubtitle, setEditSubtitle] = useState(project?.subtitle || '');
-  const [editDefenseDate, setEditDefenseDate] = useState(project?.targetDefenseDate || '2026-11-30');
+  const [editDefenseDate, setEditDefenseDate] = useState(project?.targetDefenseDate || '');
   const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
   const [activePipelineFilter, setActivePipelineFilter] = useState<'all' | 'claimable' | 'my_claimed' | 'in_review'>('all');
   const [selectedTicketTask, setSelectedTicketTask] = useState<Task | null>(null);
@@ -94,7 +94,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (project) {
       setEditTitle(project.title || '');
       setEditSubtitle(project.subtitle || '');
-      setEditDefenseDate(project.targetDefenseDate || '2026-11-30');
+      setEditDefenseDate(project.targetDefenseDate || '');
     }
   }, [project]);
 

@@ -193,7 +193,7 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
       return proj.collaborators.map((c, idx) => ({
         id: c.id || `m_${projId}_${idx}`,
         name: c.name,
-        email: `${c.name.toLowerCase().replace(/\s+/g, '.')}@university.edu`,
+        email: '',
         role: (c.permission === 'adviser' ? 'adviser' : c.permission === 'owner' || c.permission === 'editor' ? 'leader' : 'developer') as any,
         roleTitle: c.role || 'Contributor',
         permissionLevel: (c.permission || 'member') as any,

@@ -47,9 +47,32 @@ export interface RealtimeSubscriptionOptions {
 export class RealtimeHub {
   private activeChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
   private currentProjectId: string | null = null;
+  public readonly peerId: string = `peer_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
 
   /**
-   * Subscribe to real-time database CDC replication and presence tracking
+   * Broadcast an ephemeral or data mutation event directly to all connected peers
+   */
+  public async broadcast(event: string, payload: Record<string, any>): Promise<boolean> {
+    if (!this.activeChannel) return false;
+    try {
+      const res = await this.activeChannel.send({
+        type: 'broadcast',
+        event,
+        payload: {
+          ...payload,
+          _senderPeerId: this.peerId,
+          _timestamp: Date.now()
+        }
+      });
+      return res === 'ok';
+    } catch (err) {
+      console.warn('[RealtimeHub] Broadcast send failed:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Subscribe to real-time database CDC replication, broadcast channels, and presence tracking
    */
   public subscribe(options: RealtimeSubscriptionOptions): () => void {
     if (!isSupabaseConfigured() || !supabase) {
@@ -65,11 +88,64 @@ export class RealtimeHub {
         config: {
           presence: {
             key: options.currentUser?.memberId || 'guest'
+          },
+          broadcast: {
+            self: false,
+            ack: true
           }
         }
       });
 
-      // 1. Granular Task CDC events
+      // ==========================================
+      // LAYER 1: Immediate WebSocket Peer Broadcasts (< 50ms)
+      // ==========================================
+      channel.on('broadcast', { event: 'task_change' }, (msg: any) => {
+        const { eventType, task, _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        if (eventType === 'DELETE') {
+          if (task?.id && options.onTaskChange) options.onTaskChange('DELETE', { id: task.id });
+        } else if (task && options.onTaskChange) {
+          options.onTaskChange('UPSERT', task);
+        }
+      });
+
+      channel.on('broadcast', { event: 'subtask_change' }, (msg: any) => {
+        const { eventType, subtask, _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        if (options.onSubtaskChange && subtask) {
+          options.onSubtaskChange(eventType, subtask);
+        }
+      });
+
+      channel.on('broadcast', { event: 'standup_change' }, (msg: any) => {
+        const { eventType, standup, _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        if (eventType === 'DELETE') {
+          if (standup?.id && options.onStandupChange) options.onStandupChange('DELETE', { id: standup.id });
+        } else if (standup && options.onStandupChange) {
+          options.onStandupChange('UPSERT', standup);
+        }
+      });
+
+      channel.on('broadcast', { event: 'revision_change' }, (msg: any) => {
+        const { eventType, revision, _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        if (eventType === 'DELETE') {
+          if (revision?.id && options.onRevisionChange) options.onRevisionChange('DELETE', { id: revision.id });
+        } else if (revision && options.onRevisionChange) {
+          options.onRevisionChange('UPSERT', revision);
+        }
+      });
+
+      channel.on('broadcast', { event: 'structural_change' }, (msg: any) => {
+        const { _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        options.onStructuralChange?.();
+      });
+
+      // ==========================================
+      // LAYER 2: PostgreSQL CDC WAL Replication (Server Database Triggered)
+      // ==========================================
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
@@ -94,7 +170,6 @@ export class RealtimeHub {
         }
       );
 
-      // 2. Granular Subtask CDC events
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'subtasks' },
@@ -114,7 +189,6 @@ export class RealtimeHub {
         }
       );
 
-      // 3. Granular Standup CDC events
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'standups' },
@@ -139,7 +213,6 @@ export class RealtimeHub {
         }
       );
 
-      // 4. Granular Revision CDC events
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'revisions' },
@@ -164,7 +237,6 @@ export class RealtimeHub {
         }
       );
 
-      // 5. Structural Project / Phase / Member / Manuscript updates
       const triggerStructural = () => options.onStructuralChange?.();
       channel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, triggerStructural)
@@ -173,7 +245,9 @@ export class RealtimeHub {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'phase_deliverables' }, triggerStructural)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'manuscript_chapters' }, triggerStructural);
 
-      // 5. Peer Presence Tracking
+      // ==========================================
+      // LAYER 3: Peer Presence Tracking
+      // ==========================================
       channel.on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const present: OnlinePresenceUser[] = [];
@@ -194,7 +268,7 @@ export class RealtimeHub {
         options.onPresenceChange?.(present);
       });
 
-      // 6. Subscribe and track presence
+      // Subscribe and track presence
       channel.subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED' && options.currentUser?.memberId) {
           await channel.track({

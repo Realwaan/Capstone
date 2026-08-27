@@ -15,7 +15,8 @@ import {
   ExternalLink,
   User,
   Sparkles,
-  Compass
+  Compass,
+  UserPlus
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 import { ActiveTeammatesPresence } from './ActiveTeammatesPresence';
@@ -31,6 +32,7 @@ interface NavbarProps {
   onNavigateToProjects?: () => void;
   onToggleMobileSidebar?: () => void;
   onOpenCommandPalette?: () => void;
+  onOpenInviteCollaborators?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -41,7 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenProjectsOverview,
   onNavigateToProjects,
   onToggleMobileSidebar,
-  onOpenCommandPalette
+  onOpenCommandPalette,
+  onOpenInviteCollaborators
 }) => {
   const { 
     project, 
@@ -164,6 +167,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             onOpenCreateProject={onOpenCreateProject}
             onOpenProjectsOverview={onOpenProjectsOverview}
           />
+        )}
+
+        {/* Quick Invite Collaborators Button */}
+        {onOpenInviteCollaborators && (
+          <button
+            type="button"
+            id="navbar-invite-btn"
+            onClick={onOpenInviteCollaborators}
+            className="btn btn-secondary btn-sm"
+            style={{
+              height: '34px',
+              padding: '0 10px',
+              gap: '6px',
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              color: 'var(--primary)',
+              borderColor: 'rgba(48, 209, 88, 0.3)',
+              background: 'rgba(48, 209, 88, 0.08)',
+              flexShrink: 0
+            }}
+            title={`Invite teammates to ${project.title} (Invite Code: ${project.inviteCode || 'CF-WORKSPACE'})`}
+          >
+            <UserPlus size={13} />
+            <span className="navbar-btn-label">Invite</span>
+          </button>
         )}
 
         <div 

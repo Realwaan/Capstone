@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { cleanProjectTitle } from './projectGenerator';
 import { 
   CapstoneProject, 
   TeamMember, 
@@ -451,22 +452,22 @@ export const fetchAllDataFromSupabase = async (targetProjectId?: string): Promis
 
 export const buildProjectUpsertPayload = (p: CapstoneProject) => ({
   id: p.id || 'capstone-proj-001',
-  title: p.title,
-  subtitle: p.subtitle,
-  team_name: p.teamName,
-  target_defense_date: p.targetDefenseDate,
-  proposal_defense_date: p.proposalDefenseDate,
-  current_phase_id: p.currentPhaseId,
-  overall_progress: p.overallProgress,
-  github_repo_url: p.githubRepoUrl,
-  adviser_name: p.adviser?.name || 'Faculty Adviser',
-  adviser_email: p.adviser?.email || 'adviser@university.edu',
-  adviser_department: p.adviser?.department || p.organization || 'Academic Supervision',
+  title: cleanProjectTitle(p.title) || p.title || '',
+  subtitle: p.subtitle || '',
+  team_name: p.teamName || '',
+  target_defense_date: p.targetDefenseDate || '',
+  proposal_defense_date: p.proposalDefenseDate || '',
+  current_phase_id: p.currentPhaseId || 1,
+  overall_progress: p.overallProgress || 0,
+  github_repo_url: p.githubRepoUrl || '',
+  adviser_name: p.adviser?.name || '',
+  adviser_email: p.adviser?.email || '',
+  adviser_department: p.adviser?.department || p.organization || '',
   panel_members: p.panelMembers || [],
-  invite_code: p.inviteCode,
+  invite_code: p.inviteCode || (p.id ? `CF-${p.id.slice(-6).toUpperCase()}` : undefined),
   track_type: p.trackType || 'full_coding',
   has_manuscript: p.hasManuscript ?? false,
-  organization: p.organization || 'College of Computer Studies',
+  organization: p.organization || '',
   region: p.region || 'ap-southeast-1'
 });
 
@@ -734,9 +735,10 @@ export const clearAndSeedSupabaseDatabase = async (data: {
 };
 
 export const resolveActiveProjectId = (explicitId?: string): string => {
-  if (explicitId && explicitId.trim()) return explicitId.trim();
+  if (explicitId && explicitId.trim() && explicitId !== 'capstone-1' && explicitId !== 'global') {
+    return explicitId.trim();
+  }
   if (typeof window !== 'undefined' && window.localStorage) {
-    // 1. Scoped identity key
     try {
       const identityUser = localStorage.getItem('capstoneflow_state_v10_github_user');
       let identity = 'guest';
@@ -747,10 +749,15 @@ export const resolveActiveProjectId = (explicitId?: string): string => {
         identity = 'demo';
       }
 
+      // 1. Scoped active project
       const scopedSaved = localStorage.getItem(`capstoneflow_active_project_id__${identity}`);
       if (scopedSaved && scopedSaved.trim()) return scopedSaved.trim();
 
-      // 2. Scoped project registry first entry
+      // 2. Direct active project
+      const saved = localStorage.getItem('capstoneflow_active_project_id');
+      if (saved && saved.trim()) return saved.trim();
+
+      // 3. Scoped project registry first entry
       const scopedRegistry = localStorage.getItem(`capstoneflow_projects_registry_v1__${identity}`);
       if (scopedRegistry) {
         const parsed = JSON.parse(scopedRegistry);
@@ -758,14 +765,8 @@ export const resolveActiveProjectId = (explicitId?: string): string => {
           return parsed[0].id;
         }
       }
-    } catch {}
 
-    // 3. Fallback to direct active key
-    const saved = localStorage.getItem('capstoneflow_active_project_id');
-    if (saved && saved.trim()) return saved.trim();
-
-    // 4. Global project registry fallback
-    try {
+      // 4. Global project registry fallback
       const globalRegistry = localStorage.getItem('capstoneflow_projects_registry_v1');
       if (globalRegistry) {
         const parsed = JSON.parse(globalRegistry);
@@ -773,9 +774,16 @@ export const resolveActiveProjectId = (explicitId?: string): string => {
           return parsed[0].id;
         }
       }
+
+      // 5. Active project state fallback
+      const activeProjectState = localStorage.getItem('capstoneflow_state_v10_project');
+      if (activeProjectState) {
+        const parsed = JSON.parse(activeProjectState);
+        if (parsed?.id) return parsed.id;
+      }
     } catch {}
   }
-  return 'capstone-1';
+  return explicitId || 'capstone-proj-001';
 };
 
 // Real-Time Upsert / Delete Event Handlers for Supabase

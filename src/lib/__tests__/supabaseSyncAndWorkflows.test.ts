@@ -38,8 +38,8 @@ describe('supabaseSync & Multi-Project Workflow Integrity', () => {
       expect(resolveActiveProjectId()).toBe('proj-direct-789');
     });
 
-    it('falls back safely to default capstone-1 if storage is empty', () => {
-      expect(resolveActiveProjectId()).toBe('capstone-1');
+    it('falls back safely to default capstone-proj-001 if storage is empty', () => {
+      expect(resolveActiveProjectId()).toBe('capstone-proj-001');
     });
   });
 

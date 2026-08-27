@@ -79,10 +79,11 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
     if (tokenVerification && tokenVerification.valid && tokenVerification.payload) {
       const p = tokenVerification.payload;
       const roleToAssign: Role = p.role === 'adviser' ? 'adviser' : p.role === 'editor' ? 'leader' : p.role === 'viewer' ? 'researcher' : 'developer';
+      const permissionToAssign: 'member' | 'editor' | 'adviser' | 'viewer' = p.role === 'developer' ? 'member' : ((p.role as any) || 'member');
       return {
         code: p.pid.toUpperCase(),
         role: roleToAssign,
-        permission: p.role as 'member' | 'editor' | 'adviser' | 'viewer',
+        permission: permissionToAssign,
         isCryptographic: true,
         issuer: p.iss
       };
@@ -142,13 +143,15 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
     p.id.toUpperCase() === parsed.code
   );
 
-  const roleDetails = {
+  const roleMap: Record<string, { title: string; icon: any; badge: string; color: string }> = {
     member: { title: 'Developer / Contributor', icon: Code, badge: 'Full Contributor Access', color: 'var(--primary)' },
+    developer: { title: 'Developer / Contributor', icon: Code, badge: 'Full Contributor Access', color: 'var(--primary)' },
     editor: { title: 'Editor / Co-Lead', icon: Edit3, badge: 'Sprint Management Access', color: '#38bdf8' },
     adviser: { title: 'Faculty Adviser / Reviewer', icon: GraduationCap, badge: 'Academic Sign-Off Authority', color: '#a78bfa' },
     viewer: { title: 'Observer / Evaluator', icon: Eye, badge: 'Read-Only Access', color: 'var(--text-muted)' }
-  }[parsed.permission];
+  };
 
+  const roleDetails = roleMap[parsed.permission] || roleMap.member;
   const RoleIcon = roleDetails.icon;
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -256,6 +256,7 @@ export interface NewProjectPayload {
   databasePassword?: string;
   templatePreset: ProjectTemplatePreset;
   targetDefenseDate: string;
+  proposalDefenseDate?: string;
   teamName?: string;
   githubRepoUrl?: string;
   adviserName?: string;

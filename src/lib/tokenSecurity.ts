@@ -8,6 +8,7 @@ export type ProjectAccessRole = 'developer' | 'editor' | 'adviser' | 'viewer';
 export interface InviteTokenPayload {
   pid: string;          // Project Code / ID (e.g. CF-AGRI88 or UUID)
   title?: string;       // Project Title (e.g. "Smart Irrigation IoT")
+  subtitle?: string;    // Project Subtitle
   role: ProjectAccessRole; // Cryptographically signed authorized role
   iss: string;          // Issuer ID or GitHub Login
   iat: number;          // Issued At (Unix timestamp in ms)
@@ -19,6 +20,8 @@ export interface InviteTokenPayload {
   adviserEmail?: string;// Adviser email
   adviserDepartment?: string; // Adviser department
   teamName?: string;    // Team name
+  targetDefenseDate?: string; // Target defense date
+  proposalDefenseDate?: string; // Proposal defense date
 }
 
 export interface TokenVerificationResult {

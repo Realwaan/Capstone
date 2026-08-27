@@ -28,6 +28,7 @@ import { StandupModal } from './components/StandupModal';
 import { GitHubAuthModal } from './components/GitHubAuthModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { ProjectsOverviewModal } from './components/ProjectsOverviewModal';
+import { InviteCollaboratorModal } from './components/InviteCollaboratorModal';
 import { CommandPalette } from './components/CommandPalette';
 
 const VALID_VIEWS: ViewType[] = [
@@ -107,6 +108,7 @@ const MainLayout: React.FC = () => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [isProjectsOverviewOpen, setIsProjectsOverviewOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   // Auto-launch Driver.js onboarding tour on first visit to a project dashboard.
   // The tour targets #navbar-* / #sidebar-* elements which only exist inside the
@@ -243,6 +245,7 @@ const MainLayout: React.FC = () => {
               onNavigateToProjects={() => handleSelectView('projects')}
               onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
               onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+              onOpenInviteCollaborators={() => setIsInviteModalOpen(true)}
             />
 
             <main key={activeView} className="content-body tab-transition-shell" aria-live="polite">
@@ -358,6 +361,14 @@ const MainLayout: React.FC = () => {
           onClose={() => setIsProjectsOverviewOpen(false)}
           onOpenCreateProject={() => setIsCreateProjectOpen(true)}
           onNavigateToSettings={() => handleSelectView('settings')}
+        />
+      )}
+
+      {isInviteModalOpen && (
+        <InviteCollaboratorModal 
+          isOpen={isInviteModalOpen}
+          onClose={() => setIsInviteModalOpen(false)}
+          project={project}
         />
       )}
     </div>
