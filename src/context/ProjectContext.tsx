@@ -568,15 +568,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let isMounted = true;
     setIsWorkspaceLoading(true);
 
-    // Discover only projects this account is a roster member of
+    // Discover projects from cloud
     fetchMembershipProjectsFromSupabase(githubUser?.login, githubUser?.email).then(cloudProjects => {
       if (!isMounted || !cloudProjects || cloudProjects.length === 0) return;
       setProjects(prev => {
         const map = new Map<string, CapstoneProject>();
-        prev.forEach(p => map.set(p.id, p));
-        cloudProjects.forEach(cp => {
-          const existing = map.get(cp.id);
-          map.set(cp.id, existing ? { ...existing, ...cp } : cp);
+        cloudProjects.forEach(cp => map.set(cp.id, cp));
+        prev.forEach(p => {
+          if (!map.has(p.id)) map.set(p.id, p);
         });
         const merged = Array.from(map.values());
         try {
@@ -584,6 +583,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } catch {}
         return merged;
       });
+
+      // If active project is not in cloud projects, switch to the latest cloud project
+      if (!cloudProjects.some(cp => cp.id === activeProjectIdRef.current)) {
+        const primary = cloudProjects[0];
+        if (primary && primary.id) {
+          switchProject(primary.id, primary);
+        }
+      }
     }).catch(err => console.warn('[Supabase] Project discovery notice:', err));
 
     fetchAllDataFromSupabase(activeProjectIdRef.current).then(async data => {
@@ -591,45 +598,25 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const currentProjId = activeProjectIdRef.current || (data?.project ? data.project.id : project.id);
 
-      if (data && data.project && data.project.id === activeProjectIdRef.current) {
+      if (data && data.project) {
         setProject(data.project);
         if (data.members && data.members.length > 0) setMembers(data.members);
         if (data.phases && data.phases.length > 0) setPhases(data.phases);
-        
-        if (data.tasks && data.tasks.length > 0) {
+        if (data.tasks !== undefined) {
           setTasks(data.tasks);
           localStorage.setItem(`capstoneflow_proj_${currentProjId}_tasks`, JSON.stringify(data.tasks));
-        } else {
-          // Cloud project has 0 tasks: check local state and sync if present
-          const saved = localStorage.getItem(`capstoneflow_proj_${currentProjId}_tasks`);
-          const localList: Task[] = saved ? JSON.parse(saved) : (tasks.length > 0 ? tasks : []);
-          if (localList.length > 0) {
-            setTasks(localList);
-            localList.forEach(t => void syncTaskToSupabase(t, currentProjId));
-          }
         }
-
         if (data.standups && data.standups.length > 0) setStandups(data.standups);
         if (data.revisions && data.revisions.length > 0) setRevisions(data.revisions);
         if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
         if (data.activityLogs && data.activityLogs.length > 0) setActivityLogs(data.activityLogs);
-      } else if (!data || data.project === undefined) {
-        // Connected to Supabase, but this workspace has no cloud record yet:
-        // auto-seed from local state so it is live in Supabase.
-        await seedSupabaseDatabase({
-          project,
-          members,
-          phases,
-          tasks: tasks.length > 0 ? tasks : [],
-          standups,
-          revisions,
-          chapters
-        });
+      } else {
+        // Workspace not in cloud yet: ensure project row is provisioned
+        await syncProjectToSupabase(project);
       }
       setIsDatabaseConnected(true);
     }).catch(err => {
-      console.warn('Supabase hydration check failed:', err);
-      if (isMounted) setIsDatabaseConnected(isSupabaseConfigured());
+      console.warn('Supabase initial hydration error:', err);
     }).finally(() => {
       if (isMounted) setIsWorkspaceLoading(false);
     });

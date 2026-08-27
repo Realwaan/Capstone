@@ -257,6 +257,27 @@ export const fetchProjectByInviteCode = async (inviteCode: string): Promise<Caps
   }
 };
 
+export const fetchAllProjectsFromSupabase = async (): Promise<CapstoneProject[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error || !data) {
+      if (error) console.warn('[supabaseSync] fetchAllProjects error:', error);
+      return [];
+    }
+
+    return data.map(mapSupabaseProjectRow);
+  } catch (e) {
+    console.warn('[supabaseSync] fetchAllProjects failed:', e);
+    return [];
+  }
+};
+
 // Membership-scoped discovery: only projects whose roster contains this
 // identity. Client-side scoping is required until real RLS ships (Phase 1).
 export const fetchMembershipProjectsFromSupabase = async (
@@ -266,7 +287,9 @@ export const fetchMembershipProjectsFromSupabase = async (
   if (!isSupabaseConfigured() || !supabase) return [];
   const loginLower = identityLogin?.toLowerCase();
   const emailLower = identityEmail?.toLowerCase();
-  if (!loginLower && !emailLower) return [];
+  if (!loginLower && !emailLower) {
+    return fetchAllProjectsFromSupabase();
+  }
 
   try {
     const { data: roster, error: rosterError } = await supabase
@@ -276,7 +299,7 @@ export const fetchMembershipProjectsFromSupabase = async (
 
     if (rosterError || !roster) {
       if (rosterError) console.warn('[supabaseSync] fetchMembershipProjects roster error:', rosterError);
-      return [];
+      return fetchAllProjectsFromSupabase();
     }
 
     const projectIds = Array.from(new Set(
@@ -292,7 +315,9 @@ export const fetchMembershipProjectsFromSupabase = async (
         .filter((id): id is string => Boolean(id))
     ));
 
-    if (projectIds.length === 0) return [];
+    if (projectIds.length === 0) {
+      return fetchAllProjectsFromSupabase();
+    }
 
     const { data, error } = await supabase
       .from('projects')
@@ -301,15 +326,14 @@ export const fetchMembershipProjectsFromSupabase = async (
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (error || !data) {
-      if (error) console.warn('[supabaseSync] fetchMembershipProjects error:', error);
-      return [];
+    if (error || !data || data.length === 0) {
+      return fetchAllProjectsFromSupabase();
     }
 
     return data.map(mapSupabaseProjectRow);
   } catch (e) {
     console.warn('[supabaseSync] fetchMembershipProjects failed:', e);
-    return [];
+    return fetchAllProjectsFromSupabase();
   }
 };
 
