@@ -342,13 +342,13 @@ export const fetchAllDataFromSupabase = async (targetProjectId?: string): Promis
     let chaptersQuery = supabase.from('manuscript_chapters').select('*').order('chapter_number', { ascending: true });
 
     if (resolvedProjectId) {
-      membersQuery = membersQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
-      phasesQuery = phasesQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
-      tasksQuery = tasksQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
-      standupsQuery = standupsQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
-      revsQuery = revsQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
-      logsQuery = logsQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
-      chaptersQuery = chaptersQuery.or(`project_id.eq.${resolvedProjectId},project_id.is.null`);
+      membersQuery = membersQuery.eq('project_id', resolvedProjectId);
+      phasesQuery = phasesQuery.eq('project_id', resolvedProjectId);
+      tasksQuery = tasksQuery.eq('project_id', resolvedProjectId);
+      standupsQuery = standupsQuery.eq('project_id', resolvedProjectId);
+      revsQuery = revsQuery.eq('project_id', resolvedProjectId);
+      logsQuery = logsQuery.eq('project_id', resolvedProjectId);
+      chaptersQuery = chaptersQuery.eq('project_id', resolvedProjectId);
     }
 
     const [
@@ -733,11 +733,47 @@ export const clearAndSeedSupabaseDatabase = async (data: {
   }
 };
 
-const resolveActiveProjectId = (explicitId?: string): string => {
+export const resolveActiveProjectId = (explicitId?: string): string => {
   if (explicitId && explicitId.trim()) return explicitId.trim();
   if (typeof window !== 'undefined' && window.localStorage) {
+    // 1. Scoped identity key
+    try {
+      const identityUser = localStorage.getItem('capstoneflow_state_v10_github_user');
+      let identity = 'guest';
+      if (identityUser) {
+        const parsed = JSON.parse(identityUser);
+        if (parsed?.login) identity = `gh_${String(parsed.login).toLowerCase()}`;
+      } else if (localStorage.getItem('capstoneflow_state_v10_demo_mode') === 'true') {
+        identity = 'demo';
+      }
+
+      const scopedSaved = localStorage.getItem(`capstoneflow_active_project_id__${identity}`);
+      if (scopedSaved && scopedSaved.trim()) return scopedSaved.trim();
+
+      // 2. Scoped project registry first entry
+      const scopedRegistry = localStorage.getItem(`capstoneflow_projects_registry_v1__${identity}`);
+      if (scopedRegistry) {
+        const parsed = JSON.parse(scopedRegistry);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.id) {
+          return parsed[0].id;
+        }
+      }
+    } catch {}
+
+    // 3. Fallback to direct active key
     const saved = localStorage.getItem('capstoneflow_active_project_id');
     if (saved && saved.trim()) return saved.trim();
+
+    // 4. Global project registry fallback
+    try {
+      const globalRegistry = localStorage.getItem('capstoneflow_projects_registry_v1');
+      if (globalRegistry) {
+        const parsed = JSON.parse(globalRegistry);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.id) {
+          return parsed[0].id;
+        }
+      }
+    } catch {}
   }
   return 'capstone-1';
 };
@@ -756,10 +792,10 @@ export const syncTaskToSupabase = async (task: Task, projectId?: string) => {
       priority: task.priority,
       status: task.status,
       assignee_id: task.assigneeId || null,
-      phase_id: task.phaseId,
-      story_points: task.storyPoints,
-      estimated_hours: task.estimatedHours,
-      logged_hours: task.loggedHours,
+      phase_id: task.phaseId || 1,
+      story_points: task.storyPoints || 3,
+      estimated_hours: task.estimatedHours || 8,
+      logged_hours: task.loggedHours || 0,
       due_date: task.dueDate,
       deliverable_url: task.deliverableUrl,
       folder: task.folder,
@@ -788,7 +824,7 @@ export const syncTaskToSupabase = async (task: Task, projectId?: string) => {
 
     const { error: taskError } = await supabase.from('tasks').upsert(payload);
     if (taskError) {
-      console.error('Supabase task upsert rejected:', taskError);
+      console.error('[supabaseSync] task upsert rejected:', taskError);
       return false;
     }
 
@@ -802,8 +838,7 @@ export const syncTaskToSupabase = async (task: Task, projectId?: string) => {
         }))
       );
       if (subtasksError) {
-        console.error('Supabase subtasks upsert rejected:', subtasksError);
-        return false;
+        console.warn('[supabaseSync] subtasks upsert warning:', subtasksError);
       }
     }
     return true;
@@ -813,10 +848,14 @@ export const syncTaskToSupabase = async (task: Task, projectId?: string) => {
   }
 };
 
-export const deleteTaskFromSupabase = async (taskId: string) => {
+export const deleteTaskFromSupabase = async (taskId: string, projectId?: string) => {
   if (!isSupabaseConfigured() || !supabase) return;
   try {
-    await supabase.from('tasks').delete().eq('id', taskId);
+    let query = supabase.from('tasks').delete().eq('id', taskId);
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    await query;
   } catch (e) {
     console.warn('Supabase task delete failed:', e);
   }
@@ -870,10 +909,14 @@ export const syncPhaseToSupabase = async (phase: MilestonePhase, projectId?: str
   }
 };
 
-export const deletePhaseFromSupabase = async (phaseId: number) => {
+export const deletePhaseFromSupabase = async (phaseId: number, projectId?: string) => {
   if (!isSupabaseConfigured() || !supabase) return;
   try {
-    await supabase.from('milestone_phases').delete().eq('id', phaseId);
+    let query = supabase.from('milestone_phases').delete().eq('id', phaseId);
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    await query;
   } catch (e) {
     console.warn('Supabase phase delete failed:', e);
   }
@@ -936,10 +979,14 @@ export const syncRevisionToSupabase = async (revision: RevisionItem, projectId?:
   }
 };
 
-export const deleteRevisionFromSupabase = async (revisionId: string) => {
+export const deleteRevisionFromSupabase = async (revisionId: string, projectId?: string) => {
   if (!isSupabaseConfigured() || !supabase) return;
   try {
-    await supabase.from('revisions').delete().eq('id', revisionId);
+    let query = supabase.from('revisions').delete().eq('id', revisionId);
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    await query;
   } catch (e) {
     console.warn('Supabase revision delete failed:', e);
   }
@@ -970,8 +1017,9 @@ export const syncMemberToSupabase = async (member: TeamMember, projectId?: strin
 export const joinCloudProject = async (projectId: string, member: TeamMember): Promise<boolean> => {
   if (!isSupabaseConfigured() || !supabase) return false;
   try {
+    const memberIdToUse = member.id || `m_${member.githubUsername || Date.now()}`;
     const { error } = await supabase.from('team_members').upsert({
-      id: member.id,
+      id: memberIdToUse,
       project_id: projectId,
       name: member.name,
       email: member.email,
@@ -989,10 +1037,14 @@ export const joinCloudProject = async (projectId: string, member: TeamMember): P
   }
 };
 
-export const deleteMemberFromSupabase = async (memberId: string) => {
+export const deleteMemberFromSupabase = async (memberId: string, projectId?: string) => {
   if (!isSupabaseConfigured() || !supabase) return;
   try {
-    await supabase.from('team_members').delete().eq('id', memberId);
+    let query = supabase.from('team_members').delete().eq('id', memberId);
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    await query;
   } catch (e) {
     console.warn('Supabase member delete failed:', e);
   }

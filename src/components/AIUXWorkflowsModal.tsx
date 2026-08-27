@@ -33,7 +33,7 @@ interface AIUXWorkflowsModalProps {
 }
 
 export const AIUXWorkflowsModal: React.FC<AIUXWorkflowsModalProps> = ({ isOpen, onClose }) => {
-  const { project, members, currentMember, addTask } = useProject();
+  const { project, members, currentMember, addTasks } = useProject();
   
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(AI_UX_WORKFLOWS[0].id);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -51,7 +51,10 @@ export const AIUXWorkflowsModal: React.FC<AIUXWorkflowsModalProps> = ({ isOpen, 
     : AI_UX_WORKFLOWS.filter(w => w.category === selectedCategory);
 
   const handleCopyPrompt = (stepId: string, promptText: string) => {
-    const populated = promptText.replace(/{PROJECT_NAME}/g, customFeatureName || project.title);
+    const populated = promptText
+      .replace(/{FEATURE_NAME}/g, customFeatureName || project.title)
+      .replace(/{PROJECT_NAME}/g, customFeatureName || project.title)
+      .replace(/{PROJECT_TITLE}/g, project.title);
     navigator.clipboard.writeText(populated);
     setCopiedPromptId(stepId);
     toast.success('Prompt copied to clipboard!');
@@ -63,10 +66,12 @@ export const AIUXWorkflowsModal: React.FC<AIUXWorkflowsModalProps> = ({ isOpen, 
     try {
       const assignedMember = currentMember || members[0];
       const now = new Date().toISOString();
+      const baseTimestamp = Date.now();
 
-      activeWorkflow.steps.forEach((step, idx) => {
-        const newTask: Task = {
-          id: `task-wf-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+      const newTasks: Task[] = activeWorkflow.steps.map((step, idx) => {
+        const randId = Math.random().toString(36).substring(2, 7);
+        return {
+          id: `task-wf-${baseTimestamp}-${idx}-${randId}`,
           title: `[${activeWorkflow.title}] ${step.title}`,
           description: step.problemStatement,
           status: idx === 0 ? 'todo' : 'backlog',
@@ -76,19 +81,19 @@ export const AIUXWorkflowsModal: React.FC<AIUXWorkflowsModalProps> = ({ isOpen, 
           storyPoints: step.storyPoints,
           estimatedHours: step.estimatedHours,
           loggedHours: 0,
-          dueDate: new Date(Date.now() + (idx + 1) * 2 * 86400000).toISOString().split('T')[0],
-          phaseId: project.currentPhaseId,
-          createdAt: now,
-          updatedAt: now,
+          dueDate: new Date(baseTimestamp + (idx + 1) * 2 * 86400000).toISOString().split('T')[0],
+          phaseId: project.currentPhaseId || 1,
+          createdAt: now.split('T')[0],
+          updatedAt: now.split('T')[0],
           subtasks: step.whatToFix.map((fix, sIdx) => ({
-            id: `sub-${Date.now()}-${sIdx}`,
+            id: `sub-${baseTimestamp}-${idx}-${sIdx}-${Math.random().toString(36).substring(2, 6)}`,
             title: fix,
             completed: false
           })),
           problemStatement: step.problemStatement,
           whatToFix: step.whatToFix,
           acceptanceCriteria: step.acceptanceCriteria.map((crit, cIdx) => ({
-            id: `crit-${Date.now()}-${cIdx}`,
+            id: `crit-${baseTimestamp}-${idx}-${cIdx}-${Math.random().toString(36).substring(2, 6)}`,
             text: crit,
             completed: false
           })),
@@ -96,9 +101,9 @@ export const AIUXWorkflowsModal: React.FC<AIUXWorkflowsModalProps> = ({ isOpen, 
           folder: activeWorkflow.id,
           createdByUsername: currentMember?.name || 'AI UX Playground'
         };
-
-        addTask(newTask);
       });
+
+      addTasks(newTasks);
 
       // Broadcast to Discord Webhook
       notifyDiscordWorkflowLaunched(

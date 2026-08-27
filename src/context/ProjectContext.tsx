@@ -141,7 +141,8 @@ interface ProjectContextType {
   removeMember: (memberId: string) => void;
 
   // Task & Ticket Actions
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => void;
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'> & { id?: string }) => void;
+  addTasks: (tasks: Task[]) => void;
   retryDiscordTicket: (taskId: string) => Promise<boolean>;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
@@ -1610,7 +1611,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const addTask = (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => {
+  const addTask = (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'> & { id?: string }) => {
     const discordSyncEnabled = isDiscordTicketSyncEnabled();
     const pendingDiscordTicket = discordSyncEnabled
       ? {
@@ -1620,25 +1621,46 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           syncStatus: 'pending' as const
         }
       : undefined;
+    const currentProjId = activeProjectIdRef.current || project.id;
+    const randSuffix = Math.random().toString(36).substring(2, 9);
+    const taskId = taskData.id && taskData.id.trim() ? taskData.id : `task-${Date.now()}-${randSuffix}`;
+    const targetPhaseId = taskData.phaseId || project.currentPhaseId || 1;
+    const nowIso = new Date().toISOString();
+
     const newTask: Task = {
       ...taskData,
-      ...(pendingDiscordTicket ? { discordTicket: pendingDiscordTicket } : {}),
-      status: taskData.status === 'backlog' ? 'backlog' : 'todo',
-      phaseId: taskData.phaseId || project.currentPhaseId,
-      id: `task-${Date.now()}`,
-      loggedHours: 0,
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0]
+      id: taskId,
+      status: taskData.status === 'backlog' ? 'backlog' : (taskData.status || 'todo'),
+      phaseId: targetPhaseId,
+      loggedHours: (taskData as any).loggedHours || 0,
+      createdAt: (taskData as any).createdAt || nowIso.split('T')[0],
+      updatedAt: (taskData as any).updatedAt || nowIso.split('T')[0],
+      subtasks: taskData.subtasks || [],
+      acceptanceCriteria: taskData.acceptanceCriteria || [],
+      whatToFix: taskData.whatToFix || [],
+      relatedFiles: taskData.relatedFiles || [],
+      tags: taskData.tags || [],
+      attachments: taskData.attachments || [],
+      ...(pendingDiscordTicket ? { discordTicket: pendingDiscordTicket } : {})
     };
-    setTasks(prev => [newTask, ...prev]);
-    void syncTaskToSupabase(newTask);
+
+    setTasks(prev => {
+      const exists = prev.some(t => t.id === newTask.id);
+      if (exists) {
+        return prev.map(t => t.id === newTask.id ? newTask : t);
+      }
+      return [newTask, ...prev];
+    });
+
+    void syncTaskToSupabase(newTask, currentProjId);
+
     if (discordSyncEnabled) {
       void createDiscordTicket(newTask).then(discordTicket => {
         if (!discordTicket) return;
 
         const linkedTask = { ...newTask, discordTicket };
         setTasks(prev => prev.map(task => task.id === newTask.id ? linkedTask : task));
-        void syncTaskToSupabase(linkedTask);
+        void syncTaskToSupabase(linkedTask, currentProjId);
         toast.success('Discord ticket created', {
           description: 'The website task is now linked to its Discord ticket channel.'
         });
@@ -1654,7 +1676,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         };
         const failedTask = { ...newTask, discordTicket: failedDiscordTicket };
         setTasks(prev => prev.map(task => task.id === newTask.id ? failedTask : task));
-        void syncTaskToSupabase(failedTask);
+        void syncTaskToSupabase(failedTask, currentProjId);
         console.warn('Discord background ticket creation offline:', error);
       });
     }
@@ -1662,9 +1684,41 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     toast.success(`Task created: "${newTask.title}"`);
   };
 
+  const addTasks = (tasksToAdd: Task[]) => {
+    if (!tasksToAdd || tasksToAdd.length === 0) return;
+    const currentProjId = activeProjectIdRef.current || project.id;
+    const nowIso = new Date().toISOString();
+    const sanitizedList: Task[] = tasksToAdd.map((t, idx) => ({
+      ...t,
+      id: t.id && t.id.trim() ? t.id : `task-wf-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+      phaseId: t.phaseId || project.currentPhaseId || 1,
+      createdAt: t.createdAt || nowIso.split('T')[0],
+      updatedAt: t.updatedAt || nowIso.split('T')[0],
+      loggedHours: t.loggedHours || 0,
+      subtasks: t.subtasks || [],
+      acceptanceCriteria: t.acceptanceCriteria || [],
+      whatToFix: t.whatToFix || [],
+      relatedFiles: t.relatedFiles || []
+    }));
+
+    setTasks(prev => {
+      const existingIds = new Set(prev.map(p => p.id));
+      const newOnly = sanitizedList.filter(s => !existingIds.has(s.id));
+      const updated = [...newOnly, ...prev];
+      localStorage.setItem(`capstoneflow_proj_${currentProjId}_tasks`, JSON.stringify(updated));
+      return updated;
+    });
+
+    sanitizedList.forEach(t => {
+      void syncTaskToSupabase(t, currentProjId);
+    });
+    logActivity('synchronized workflow tasks', `${sanitizedList.length} task(s)`);
+  };
+
   const retryDiscordTicket = async (taskId: string): Promise<boolean> => {
     const target = tasks.find(task => task.id === taskId);
     if (!target || !isDiscordTicketSyncEnabled()) return false;
+    const currentProjId = activeProjectIdRef.current || project.id;
 
     const pendingLink = {
       ...(target.discordTicket || { guildId: '', channelId: '', channelUrl: '' }),
@@ -1673,14 +1727,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     const pendingTask = { ...target, discordTicket: pendingLink };
     setTasks(prev => prev.map(task => task.id === taskId ? pendingTask : task));
-    void syncTaskToSupabase(pendingTask);
+    void syncTaskToSupabase(pendingTask, currentProjId);
 
     try {
       const discordTicket = await createDiscordTicket(target);
       if (!discordTicket) return false;
       const linkedTask = { ...target, discordTicket };
       setTasks(prev => prev.map(task => task.id === taskId ? linkedTask : task));
-      void syncTaskToSupabase(linkedTask);
+      void syncTaskToSupabase(linkedTask, currentProjId);
       toast.success('Discord ticket linked', {
         description: 'The task is connected to its Discord ticket channel.'
       });
@@ -1695,7 +1749,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       };
       setTasks(prev => prev.map(task => task.id === taskId ? failedTask : task));
-      void syncTaskToSupabase(failedTask);
+      void syncTaskToSupabase(failedTask, currentProjId);
       toast.error('Discord ticket sync failed', {
         description: 'Check the bot configuration and try the link again.'
       });
@@ -1706,6 +1760,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateTask = (taskId: string, updates: Partial<Task>) => {
     const target = tasks.find(task => task.id === taskId);
     if (!target) return;
+    const currentProjId = activeProjectIdRef.current || project.id;
 
     const { status: requestedStatus, ...safeUpdates } = updates;
     if (requestedStatus && requestedStatus !== target.status) {
@@ -1720,15 +1775,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+    void syncTaskToSupabase(updated, currentProjId);
     logActivity('updated task details', updated.title || 'a task');
     toast.success('Task details updated');
   };
 
   const deleteTask = (taskId: string) => {
     const target = tasks.find(t => t.id === taskId);
+    const currentProjId = activeProjectIdRef.current || project.id;
     setTasks(prev => prev.filter(t => t.id !== taskId));
-    deleteTaskFromSupabase(taskId);
+    deleteTaskFromSupabase(taskId, currentProjId);
     if (target) {
       logActivity('deleted task', target.title);
       toast.info(`Deleted task: "${target.title}"`);
@@ -1876,8 +1932,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ticketEvents: target.ticketEvents ? [newEvent, ...target.ticketEvents] : [newEvent],
       updatedAt: new Date().toISOString().split('T')[0]
     };
+    const currentProjId = activeProjectIdRef.current || project.id;
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+    void syncTaskToSupabase(updated, currentProjId);
     syncTaskStateToDiscord(updated, userHandle);
     logActivity('unclaimed ticket back to open pool (/unclaim)', `[OPEN] ${target.title}`);
     toast.info('Ticket Released', {
@@ -1889,6 +1946,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const resolveTask = (taskId: string, prUrl?: string, note?: string): boolean => {
     const target = tasks.find(t => t.id === taskId);
     if (!target) return false;
+    const currentProjId = activeProjectIdRef.current || project.id;
 
     const isOwner = target.assigneeId === currentMember.id;
     const isPM = currentMember.role === 'leader';
@@ -1939,7 +1997,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+    void syncTaskToSupabase(updated, currentProjId);
     logActivity('submitted ticket for peer review', `[PEER-REVIEW] ${target.title}`);
     syncTaskStateToDiscord(updated, userHandle);
     toast.success('Ticket ready for peer review', {
@@ -1951,6 +2009,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const reviewTask = (taskId: string, note?: string): boolean => {
     const target = tasks.find(t => t.id === taskId);
     if (!target) return false;
+    const currentProjId = activeProjectIdRef.current || project.id;
 
     if (target.status !== 'peer_review' && target.status !== 'adviser_review') {
       toast.info('This task is not waiting for review.');
@@ -1994,7 +2053,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedAt: new Date().toISOString().split('T')[0]
       };
       setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-      void syncTaskToSupabase(updated);
+      void syncTaskToSupabase(updated, currentProjId);
       logActivity('completed peer review', `[ADVISER-REVIEW] ${target.title}`);
       syncTaskStateToDiscord(updated, userHandle);
       toast.success('Peer review complete', {
@@ -2036,7 +2095,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+    void syncTaskToSupabase(updated, currentProjId);
     logActivity('recorded adviser consultation approval for task', `[DONE] ${target.title}`);
     syncTaskStateToDiscord(updated, userHandle);
     toast.success('Adviser Approval Verified', {
@@ -2076,6 +2135,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const toggleTaskAcceptanceCriteria = (taskId: string, criteriaId: string) => {
     const target = tasks.find(task => task.id === taskId);
     if (!target?.acceptanceCriteria) return;
+    const currentProjId = activeProjectIdRef.current || project.id;
 
     const canEdit = target.assigneeId === currentMember.id || currentMember.role === 'leader';
     if (!canEdit) {
@@ -2096,12 +2156,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+    void syncTaskToSupabase(updated, currentProjId);
   };
 
   const moveTaskStatus = (taskId: string, newStatus: TaskStatus): boolean => {
     const target = tasks.find(task => task.id === taskId);
     if (!target) return false;
+    const currentProjId = activeProjectIdRef.current || project.id;
 
     const canStageTask = currentMember.role === 'leader' && target.status === 'backlog' && newStatus === 'todo';
     if (!canStageTask) {
@@ -2117,7 +2178,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => prev.map(task => task.id === taskId ? updated : task));
-    void syncTaskToSupabase(updated);
+    void syncTaskToSupabase(updated, currentProjId);
     syncTaskStateToDiscord(updated, currentMember.name);
     logActivity('staged task for the active workflow', target.title);
     toast.info(`Moved to to do: "${target.title}"`);
@@ -2125,6 +2186,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const toggleSubtask = (taskId: string, subtaskId: string) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     let updatedTask: Task | null = null;
     setTasks(prev =>
       prev.map(t => {
@@ -2139,7 +2201,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
     );
     if (updatedTask) {
-      void syncTaskToSupabase(updatedTask);
+      void syncTaskToSupabase(updatedTask, currentProjId);
     }
   };
 
@@ -2468,7 +2530,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
     );
     if (updatedChapter) {
-      void syncChapterToSupabase(updatedChapter);
+      const currentProjId = activeProjectIdRef.current || project.id;
+      void syncChapterToSupabase(updatedChapter, currentProjId);
     }
     logActivity('updated chapter section status', `Chapter ${chapterId}`);
   };
@@ -2489,25 +2552,28 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
     );
     if (updatedChapter) {
-      void syncChapterToSupabase(updatedChapter);
+      const currentProjId = activeProjectIdRef.current || project.id;
+      void syncChapterToSupabase(updatedChapter, currentProjId);
     }
     logActivity('updated manuscript details', `Chapter ${chapterId}`);
   };
 
   // Revision Handlers
   const addRevision = (rev: Omit<RevisionItem, 'id' | 'date'>) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     const newRev: RevisionItem = {
       ...rev,
       id: `rev-${Date.now()}`,
       date: new Date().toISOString().split('T')[0]
     };
     setRevisions(prev => [newRev, ...prev]);
-    syncRevisionToSupabase(newRev);
+    syncRevisionToSupabase(newRev, currentProjId);
     logActivity('logged a manuscript panel revision', newRev.chapterOrComponent || 'Manuscript Feedback');
     toast.success('Revision comment added');
   };
 
   const updateRevisionStatus = (id: string, status: RevisionItem['status'], actionTaken?: string) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     setRevisions(prev =>
       prev.map(r => {
         if (r.id === id) {
@@ -2516,7 +2582,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             status,
             actionTaken: actionTaken !== undefined ? actionTaken : r.actionTaken
           };
-          syncRevisionToSupabase(updated);
+          syncRevisionToSupabase(updated, currentProjId);
           return updated;
         }
         return r;
@@ -2526,19 +2592,21 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteRevision = (id: string) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     setRevisions(prev => prev.filter(r => r.id !== id));
-    deleteRevisionFromSupabase(id);
+    deleteRevisionFromSupabase(id, currentProjId);
   };
 
   // Standup Handlers
   const addStandup = (entry: Omit<StandupEntry, 'id' | 'date'>) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     const newEntry: StandupEntry = {
       ...entry,
       id: `std-${Date.now()}`,
       date: new Date().toISOString().split('T')[0]
     };
     setStandups(prev => [newEntry, ...prev]);
-    syncStandupToSupabase(newEntry);
+    syncStandupToSupabase(newEntry, currentProjId);
     notifyDiscordStandup(newEntry, currentMember.name, currentMember.roleTitle, currentMember.avatar);
     logActivity('submitted daily sprint standup', currentMember.name);
     toast.success('Standup Posted', {
@@ -2549,13 +2617,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Attachment & File Storage Handlers
   const uploadTaskAttachment = async (taskId: string, file: File): Promise<TaskAttachment | null> => {
     try {
+      const currentProjId = activeProjectIdRef.current || project.id;
       const uploader = githubUser ? `@${githubUser.login}` : currentMember.name;
       const att = await uploadAttachmentFile(file, 'tasks', uploader);
       setTasks(prev => prev.map(t => {
         if (t.id === taskId) {
           const list = t.attachments ? [...t.attachments, att] : [att];
           const updated = { ...t, attachments: list, updatedAt: new Date().toISOString().split('T')[0] };
-          syncTaskToSupabase(updated);
+          syncTaskToSupabase(updated, currentProjId);
           return updated;
         }
         return t;
@@ -2570,6 +2639,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const removeTaskAttachment = async (taskId: string, attachmentId: string) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     const task = tasks.find(t => t.id === taskId);
     const targetAtt = task?.attachments?.find(a => a.id === attachmentId);
     if (targetAtt) {
@@ -2582,7 +2652,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           attachments: t.attachments ? t.attachments.filter(a => a.id !== attachmentId) : [],
           updatedAt: new Date().toISOString().split('T')[0]
         };
-        syncTaskToSupabase(updated);
+        syncTaskToSupabase(updated, currentProjId);
         return updated;
       }
       return t;
@@ -2750,30 +2820,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (cloudData.project) {
             setProject(cloudData.project);
           }
-          if (cloudData.tasks && cloudData.tasks.length > 0) {
-            setTasks(cloudData.tasks);
-            localStorage.setItem(`capstoneflow_proj_${targetId}_tasks`, JSON.stringify(cloudData.tasks));
-          }
-          if (cloudData.phases && cloudData.phases.length > 0) {
-            setPhases(cloudData.phases);
-            localStorage.setItem(`capstoneflow_proj_${targetId}_phases`, JSON.stringify(cloudData.phases));
-          }
-          if (cloudData.members && cloudData.members.length > 0) {
-            setMembers(cloudData.members);
-            localStorage.setItem(`capstoneflow_proj_${targetId}_members`, JSON.stringify(cloudData.members));
-          }
-          if (cloudData.chapters && cloudData.chapters.length > 0) {
-            setChapters(cloudData.chapters);
-            localStorage.setItem(`capstoneflow_proj_${targetId}_chapters`, JSON.stringify(cloudData.chapters));
-          }
-          if (cloudData.revisions) {
-            setRevisions(cloudData.revisions);
-            localStorage.setItem(`capstoneflow_proj_${targetId}_revisions`, JSON.stringify(cloudData.revisions));
-          }
-          if (cloudData.standups) {
-            setStandups(cloudData.standups);
-            localStorage.setItem(`capstoneflow_proj_${targetId}_standups`, JSON.stringify(cloudData.standups));
-          }
+          const loadedTasks = cloudData.tasks || [];
+          setTasks(loadedTasks);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_tasks`, JSON.stringify(loadedTasks));
+
+          const loadedPhases = (cloudData.phases && cloudData.phases.length > 0) ? cloudData.phases : initialPhases;
+          setPhases(loadedPhases);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_phases`, JSON.stringify(loadedPhases));
+
+          const loadedMembers = (cloudData.members && cloudData.members.length > 0) ? cloudData.members : initialMembers;
+          setMembers(loadedMembers);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_members`, JSON.stringify(loadedMembers));
+
+          const loadedChapters = (cloudData.chapters && cloudData.chapters.length > 0) ? cloudData.chapters : initialChapters;
+          setChapters(loadedChapters);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_chapters`, JSON.stringify(loadedChapters));
+
+          const loadedRevisions = cloudData.revisions || [];
+          setRevisions(loadedRevisions);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_revisions`, JSON.stringify(loadedRevisions));
+
+          const loadedStandups = cloudData.standups || [];
+          setStandups(loadedStandups);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_standups`, JSON.stringify(loadedStandups));
+
+          const loadedActivity = cloudData.activityLogs || [];
+          setActivityLogs(loadedActivity);
+          localStorage.setItem(`capstoneflow_proj_${targetId}_activity`, JSON.stringify(loadedActivity));
         }
       } catch (e) {
         console.warn('Supabase switch project cloud hydration warning:', e);
@@ -2835,6 +2908,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setActivityLogs(loadedActivity);
     }
 
+    localStorage.setItem('capstoneflow_active_project_id', targetId);
     localStorage.setItem(activeProjectKeyFor(getIdentityKey()), targetId);
 
     toast.success(`Active Workspace: ${cleanProjectTitle(target.title) || target.title}`, {
@@ -2969,10 +3043,23 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setProjects(prev => {
           const filtered = prev.filter(p => p.id !== cloudProj.id);
           const next = [updatedCloudProj, ...filtered];
+          localStorage.setItem(registryKeyFor(getIdentityKey()), JSON.stringify(next));
           localStorage.setItem(`${LOCAL_STORAGE_KEY}_projects_list`, JSON.stringify(next));
           return next;
         });
-        await joinCloudProject(cloudProj.id, currentMember);
+
+        // Ensure unique visitor member id so it doesn't overwrite the original project owner
+        const visitorMember: TeamMember = {
+          ...currentMember,
+          id: currentMember.id === 'usr_owner_main' || currentMember.id === 'm_lead'
+            ? `m_${cloudProj.id}_${Date.now()}`
+            : currentMember.id,
+          role: resolvedRole,
+          roleTitle: currentMember.roleTitle || 'Software Contributor',
+          permissionLevel: (resolvedPermission === 'adviser' ? 'adviser' : resolvedPermission === 'editor' || resolvedPermission === 'owner' ? 'owner' : 'member') as PermissionLevel
+        };
+
+        await joinCloudProject(cloudProj.id, visitorMember);
         await switchProject(cloudProj.id, updatedCloudProj);
         toast.success(`Joined Cloud Project: ${cleanProjectTitle(cloudProj.title) || cloudProj.title}`, {
           description: `Live synchronization active • Access Level: ${resolvedPermission.toUpperCase()}`
@@ -3271,6 +3358,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setGitHubRepo,
         syncGitHubData,
         addTask,
+        addTasks,
         retryDiscordTicket,
         updateTask,
         deleteTask,
