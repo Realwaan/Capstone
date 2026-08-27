@@ -278,59 +278,61 @@ export const fetchAllProjectsFromSupabase = async (): Promise<CapstoneProject[]>
   }
 };
 
-// Membership-scoped discovery: only projects whose roster contains this
-// identity. Client-side scoping is required until real RLS ships (Phase 1).
 export const fetchMembershipProjectsFromSupabase = async (
   identityLogin?: string,
   identityEmail?: string
 ): Promise<CapstoneProject[]> => {
   if (!isSupabaseConfigured() || !supabase) return [];
-  const loginLower = identityLogin?.toLowerCase();
+  const loginLower = identityLogin?.toLowerCase().replace(/^@/, '');
   const emailLower = identityEmail?.toLowerCase();
   if (!loginLower && !emailLower) {
     return fetchAllProjectsFromSupabase();
   }
 
   try {
-    const { data: roster, error: rosterError } = await supabase
-      .from('team_members')
-      .select('project_id, github_username, email')
-      .limit(1000);
+    const [rosterRes, allProjectsRes] = await Promise.all([
+      supabase.from('team_members').select('project_id, github_username, email').limit(1000),
+      supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(100)
+    ]);
 
-    if (rosterError || !roster) {
-      if (rosterError) console.warn('[supabaseSync] fetchMembershipProjects roster error:', rosterError);
-      return fetchAllProjectsFromSupabase();
+    const matchingProjectIds = new Set<string>();
+
+    if (rosterRes.data) {
+      for (const row of rosterRes.data) {
+        const rowLogin = (row.github_username || '').toLowerCase().replace(/^@/, '');
+        const rowEmail = (row.email || '').toLowerCase();
+        if ((loginLower && rowLogin && rowLogin === loginLower) || (emailLower && rowEmail && rowEmail === emailLower)) {
+          if (row.project_id) matchingProjectIds.add(row.project_id);
+        }
+      }
     }
 
-    const projectIds = Array.from(new Set(
-      roster
-        .map(row => {
-          const rowLogin = (row.github_username || '').toLowerCase();
-          const rowEmail = (row.email || '').toLowerCase();
-          const matches =
-            (loginLower && rowLogin && rowLogin === loginLower) ||
-            (emailLower && rowEmail && rowEmail === emailLower);
-          return matches ? row.project_id : null;
-        })
-        .filter((id): id is string => Boolean(id))
-    ));
-
-    if (projectIds.length === 0) {
-      return fetchAllProjectsFromSupabase();
+    if (allProjectsRes.data) {
+      for (const row of allProjectsRes.data) {
+        const collaborators = Array.isArray(row.collaborators) ? row.collaborators : [];
+        const isCollaborator = collaborators.some((c: any) => {
+          const cName = (c.name || '').toLowerCase().replace(/^@/, '');
+          const cUsername = (c.githubUsername || '').toLowerCase().replace(/^@/, '');
+          return (loginLower && (cName === loginLower || cUsername === loginLower));
+        });
+        if (isCollaborator) {
+          matchingProjectIds.add(row.id);
+        }
+      }
     }
 
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .in('id', projectIds)
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (error || !data || data.length === 0) {
-      return fetchAllProjectsFromSupabase();
+    if (matchingProjectIds.size > 0 && allProjectsRes.data) {
+      const filtered = allProjectsRes.data.filter(p => matchingProjectIds.has(p.id));
+      if (filtered.length > 0) {
+        return filtered.map(mapSupabaseProjectRow);
+      }
     }
 
-    return data.map(mapSupabaseProjectRow);
+    if (allProjectsRes.data && allProjectsRes.data.length > 0) {
+      return allProjectsRes.data.map(mapSupabaseProjectRow);
+    }
+
+    return [];
   } catch (e) {
     console.warn('[supabaseSync] fetchMembershipProjects failed:', e);
     return fetchAllProjectsFromSupabase();

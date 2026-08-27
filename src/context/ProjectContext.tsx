@@ -1514,6 +1514,44 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return [...prev, newMember];
       });
 
+      if (isSupabaseConfigured()) {
+        const currentProjId = activeProjectIdRef.current || project.id;
+        const cleanLogin = userData.login.toLowerCase();
+        const userMember: TeamMember = {
+          id: `m_${cleanLogin}`,
+          name: userData.name || userData.login,
+          email: userData.email || `${cleanLogin}@users.noreply.github.com`,
+          role: 'developer',
+          roleTitle: 'Software Developer',
+          permissionLevel: 'member',
+          avatar: userData.avatar_url || `https://github.com/${userData.login}.png`,
+          color: '#10b981',
+          githubUsername: userData.login
+        };
+        void syncMemberToSupabase(userMember, currentProjId);
+
+        // Fetch cloud projects where this user is registered
+        fetchMembershipProjectsFromSupabase(userData.login, userData.email).then(cloudProjects => {
+          if (cloudProjects && cloudProjects.length > 0) {
+            setProjects(prev => {
+              const map = new Map<string, CapstoneProject>();
+              cloudProjects.forEach(cp => map.set(cp.id, cp));
+              prev.forEach(p => {
+                if (!map.has(p.id)) map.set(p.id, p);
+              });
+              const merged = Array.from(map.values());
+              try {
+                localStorage.setItem(registryKeyFor(`gh_${cleanLogin}`), JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+            if (cloudProjects[0]?.id && cloudProjects[0].id !== activeProjectIdRef.current) {
+              void switchProject(cloudProjects[0].id, cloudProjects[0]);
+            }
+          }
+        }).catch(err => console.warn('[loginWithGitHub] Cloud project sync notice:', err));
+      }
+
       logActivity('connected GitHub account', `@${userData.login}`);
       return true;
     } catch (e) {
