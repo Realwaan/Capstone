@@ -830,7 +830,21 @@ export const syncTaskToSupabase = async (task: Task, projectId?: string) => {
       discord_ticket: task.discordTicket || null
     };
 
-    const { error: taskError } = await supabase.from('tasks').upsert(payload);
+    let { error: taskError } = await supabase.from('tasks').upsert(payload);
+    if (taskError) {
+      console.warn('[supabaseSync] task upsert rejected, verifying project existence:', taskError);
+      // Auto-heal: Ensure project parent row exists in Supabase projects table
+      await supabase.from('projects').upsert({
+        id: activeId,
+        title: 'Capstone Project',
+        target_defense_date: task.dueDate || '2026-11-30',
+        current_phase_id: task.phaseId || 1,
+        overall_progress: 0
+      });
+      const retryRes = await supabase.from('tasks').upsert(payload);
+      taskError = retryRes.error;
+    }
+
     if (taskError) {
       console.error('[supabaseSync] task upsert rejected:', taskError);
       return false;
@@ -1118,9 +1132,41 @@ export const deleteChapterFromSupabase = async (chapterId: number, projectId?: s
   }
 };
 
+export const syncActivityLogToSupabase = async (log: ActivityLog, projectId?: string) => {
+  if (!isSupabaseConfigured() || !supabase) return;
+  try {
+    const activeId = resolveActiveProjectId(projectId);
+    await supabase.from('activity_logs').upsert({
+      id: log.id,
+      project_id: activeId,
+      user_id: log.userId,
+      action: log.action,
+      target: log.target,
+      timestamp: log.timestamp || new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn('Supabase activity log sync warning:', e);
+  }
+};
+
 export const deleteProjectFromSupabase = async (projectId: string) => {
   if (!isSupabaseConfigured() || !supabase) return;
   try {
+    // 1. Delete associated child records to prevent foreign key errors
+    await Promise.allSettled([
+      supabase.from('subtasks').delete().eq('project_id', projectId),
+      supabase.from('tasks').delete().eq('project_id', projectId),
+      supabase.from('standups').delete().eq('project_id', projectId),
+      supabase.from('revisions').delete().eq('project_id', projectId),
+      supabase.from('team_members').delete().eq('project_id', projectId),
+      supabase.from('phase_deliverables').delete().eq('project_id', projectId),
+      supabase.from('milestone_phases').delete().eq('project_id', projectId),
+      supabase.from('chapter_sections').delete().eq('project_id', projectId),
+      supabase.from('manuscript_chapters').delete().eq('project_id', projectId),
+      supabase.from('activity_logs').delete().eq('project_id', projectId)
+    ]);
+
+    // 2. Delete parent project row
     const { error } = await supabase.from('projects').delete().eq('id', projectId);
     if (error) {
       console.warn('[supabaseSync] deleteProjectFromSupabase warning:', error.message);

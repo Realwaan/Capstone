@@ -62,7 +62,8 @@ import {
   deleteMemberFromSupabase,
   syncProjectToSupabase,
   deleteProjectFromSupabase,
-  syncChapterToSupabase
+  syncChapterToSupabase,
+  syncActivityLogToSupabase
 } from '../lib/supabaseSync';
 import { parseGitHubRepoUrl, syncRepositoryData, DEFAULT_GITHUB_REPO_URL } from '../lib/github';
 import { getPhaseSignOffGate, getTaskSubmissionGate } from '../lib/workflow';
@@ -312,6 +313,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [activeProjectId, projects]);
 
+  const projectsRef = useRef(projects);
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
   useEffect(() => {
     localStorage.setItem(registryKeyFor(getIdentityKey()), JSON.stringify(projects));
     if (isSupabaseConfigured() && projects.length > 0) {
@@ -320,6 +326,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
   }, [projects]);
+
+  useEffect(() => {
+    if (isSupabaseConfigured() && project?.id) {
+      void syncProjectToSupabase(project);
+    }
+  }, [project.id]);
 
   useEffect(() => {
     localStorage.setItem(activeProjectKeyFor(getIdentityKey()), activeProjectId);
@@ -633,21 +645,22 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       refreshInFlight = true;
       try {
-        const data = await fetchAllDataFromSupabase(activeProjectIdRef.current);
-        if (!isMounted || !data || !data.project) return;
-        // Prevent cross-project pollution from previous projects.
-        if (data.project.id === activeProjectIdRef.current) {
+        const currentTargetId = activeProjectIdRef.current || project.id;
+        const data = await fetchAllDataFromSupabase(currentTargetId);
+        if (!isMounted || !data) return;
+        // If Supabase returned data for this project
+        if (data.project) {
           setProject(data.project);
-          if (data.members && data.members.length > 0) setMembers(data.members);
-          if (data.phases && data.phases.length > 0) setPhases(data.phases);
-          if (data.tasks && data.tasks.length > 0) {
-            setTasks(data.tasks);
-            localStorage.setItem(`capstoneflow_proj_${data.project.id}_tasks`, JSON.stringify(data.tasks));
-          }
-          if (data.standups && data.standups.length > 0) setStandups(data.standups);
-          if (data.revisions && data.revisions.length > 0) setRevisions(data.revisions);
-          if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
         }
+        if (data.members && data.members.length > 0) setMembers(data.members);
+        if (data.phases && data.phases.length > 0) setPhases(data.phases);
+        if (data.tasks !== undefined) {
+          setTasks(data.tasks);
+          localStorage.setItem(`capstoneflow_proj_${currentTargetId}_tasks`, JSON.stringify(data.tasks));
+        }
+        if (data.standups !== undefined && data.standups.length > 0) setStandups(data.standups);
+        if (data.revisions !== undefined && data.revisions.length > 0) setRevisions(data.revisions);
+        if (data.chapters !== undefined && data.chapters.length > 0) setChapters(data.chapters);
       } finally {
         refreshInFlight = false;
         if (refreshQueued) {
@@ -808,6 +821,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
       onStructuralChange: () => {
         scheduleWorkspaceRefresh();
+      },
+      onProjectDeleted: (deletedProjectId, projectTitle, deletedBy) => {
+        if (!isMounted) return;
+        handleRemoteProjectDeleted(deletedProjectId, projectTitle, deletedBy);
       }
     });
 
@@ -1128,27 +1145,140 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [currentMember]);
 
+  // Handle remote project deletion triggered by another peer or tab
+  const handleRemoteProjectDeleted = (deletedProjectId: string, projectTitle?: string, deletedBy?: string) => {
+    const titleStr = projectTitle || 'Capstone Workspace';
+    const actorStr = deletedBy || 'the Project Leader';
+
+    // Clean up scoped localStorage keys
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_project`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_tasks`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_phases`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_members`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_revisions`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_standups`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_chapters`);
+    localStorage.removeItem(`capstoneflow_proj_${deletedProjectId}_activity`);
+
+    setProjects(prev => {
+      const remaining = prev.filter(p => p.id !== deletedProjectId);
+      try {
+        localStorage.setItem(registryKeyFor(getIdentityKey()), JSON.stringify(remaining));
+      } catch {}
+      return remaining;
+    });
+
+    // If the active workspace was the one deleted, inform the user and redirect to Projects Portal
+    if (activeProjectIdRef.current === deletedProjectId || activeProjectId === deletedProjectId) {
+      toast.error('Project Deleted', {
+        description: `Project "${titleStr}" was deleted by ${actorStr}. You have been redirected to the Projects Portal.`,
+        duration: 9000
+      });
+
+      const nextRemaining = projectsRef.current.filter(p => p.id !== deletedProjectId);
+      if (nextRemaining.length > 0) {
+        switchProject(nextRemaining[0].id);
+      } else {
+        setProject(initialProject);
+        setTasks([]);
+        setPhases(initialPhases);
+        setChapters(initialChapters);
+        setMembers(initialMembers);
+        setRevisions([]);
+        setStandups([]);
+        setActivityLogs([]);
+        setActiveProjectId('');
+      }
+
+      try {
+        localStorage.setItem('capstone_active_view', 'projects');
+        window.location.hash = '#projects';
+        window.dispatchEvent(new CustomEvent('capstone:navigate_view', { detail: { view: 'projects' } }));
+      } catch {}
+    } else {
+      toast.info('Project Deleted', {
+        description: `Project "${titleStr}" was deleted by ${actorStr}.`
+      });
+    }
+  };
+
+  // Cross-Tab Project Deletion & Global Event Listener
+  useEffect(() => {
+    let projectEventsChannel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        projectEventsChannel = new BroadcastChannel('capstoneflow_project_events');
+        projectEventsChannel.onmessage = (event) => {
+          const { type, projectId, projectTitle, deletedBy } = event.data || {};
+          if (type === 'project_deleted' && projectId) {
+            handleRemoteProjectDeleted(projectId, projectTitle, deletedBy);
+          }
+        };
+      }
+    } catch {}
+
+    return () => {
+      if (projectEventsChannel) projectEventsChannel.close();
+    };
+  }, [activeProjectId]);
+
   const updateMemberPermission = (memberId: string, level: PermissionLevel) => {
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissionLevel: level } : m));
+    const currentProjId = activeProjectIdRef.current || project.id;
+    let targetMember: TeamMember | undefined;
+    setMembers(prev => {
+      const next = prev.map(m => {
+        if (m.id === memberId) {
+          targetMember = { ...m, permissionLevel: level };
+          return targetMember;
+        }
+        return m;
+      });
+      localStorage.setItem(`capstoneflow_proj_${currentProjId}_members`, JSON.stringify(next));
+      return next;
+    });
+    if (targetMember) {
+      void syncMemberToSupabase(targetMember, currentProjId);
+    }
     broadcastStructuralMutation();
-    logActivity('updated member permissions', `Member #${memberId}`);
+    logActivity('updated member permissions', `Member #${memberId} (${level})`);
   };
 
   const updateMemberRole = (memberId: string, role: Role, roleTitle: string) => {
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role, roleTitle } : m));
+    const currentProjId = activeProjectIdRef.current || project.id;
+    let targetMember: TeamMember | undefined;
+    setMembers(prev => {
+      const next = prev.map(m => {
+        if (m.id === memberId) {
+          targetMember = { ...m, role, roleTitle };
+          return targetMember;
+        }
+        return m;
+      });
+      localStorage.setItem(`capstoneflow_proj_${currentProjId}_members`, JSON.stringify(next));
+      return next;
+    });
+    if (targetMember) {
+      void syncMemberToSupabase(targetMember, currentProjId);
+    }
     broadcastStructuralMutation();
     logActivity('updated member role title', roleTitle);
   };
 
   const logActivity = (action: string, target: string) => {
+    const currentProjId = activeProjectIdRef.current || project.id;
     const newLog: ActivityLog = {
-      id: `act-${Date.now()}`,
+      id: `act-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       timestamp: new Date().toISOString(),
       userId: currentMember.id,
       action,
       target
     };
-    setActivityLogs(prev => [newLog, ...prev.slice(0, 29)]);
+    setActivityLogs(prev => {
+      const next = [newLog, ...prev.slice(0, 29)];
+      localStorage.setItem(`capstoneflow_proj_${currentProjId}_activity`, JSON.stringify(next));
+      return next;
+    });
+    void syncActivityLogToSupabase(newLog, currentProjId);
   };
 
   const toggleTheme = (event?: React.MouseEvent | MouseEvent) => {
@@ -1651,24 +1781,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [isAutoTracking, project.githubRepoUrl]);
 
   // Task Handlers & Realtime Broadcast Emitters
-  const broadcastTaskMutation = (eventType: 'UPSERT' | 'DELETE', taskOrId: Task | { id: string }) => {
-    void realtimeHub.broadcast('task_change', { eventType, task: taskOrId });
+  const broadcastTaskMutation = (eventType: 'UPSERT' | 'DELETE', taskOrId: Task | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('task_change', { eventType, task: taskOrId, projectId: currentProjId });
   };
 
-  const broadcastSubtaskMutation = (eventType: 'UPSERT' | 'DELETE', subtask: any) => {
-    void realtimeHub.broadcast('subtask_change', { eventType, subtask });
+  const broadcastSubtaskMutation = (eventType: 'UPSERT' | 'DELETE', subtask: any, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('subtask_change', { eventType, subtask, projectId: currentProjId });
   };
 
-  const broadcastStandupMutation = (eventType: 'UPSERT' | 'DELETE', standup: StandupEntry | { id: string }) => {
-    void realtimeHub.broadcast('standup_change', { eventType, standup });
+  const broadcastStandupMutation = (eventType: 'UPSERT' | 'DELETE', standup: StandupEntry | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('standup_change', { eventType, standup, projectId: currentProjId });
   };
 
-  const broadcastRevisionMutation = (eventType: 'UPSERT' | 'DELETE', revision: RevisionItem | { id: string }) => {
-    void realtimeHub.broadcast('revision_change', { eventType, revision });
+  const broadcastRevisionMutation = (eventType: 'UPSERT' | 'DELETE', revision: RevisionItem | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('revision_change', { eventType, revision, projectId: currentProjId });
   };
 
-  const broadcastStructuralMutation = () => {
-    void realtimeHub.broadcast('structural_change', {});
+  const broadcastStructuralMutation = (targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('structural_change', { projectId: currentProjId });
   };
 
   const syncTaskStateToDiscord = (task: Task, actor: string) => {
@@ -3393,11 +3528,32 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       return;
     }
-    const remaining = projects.filter(p => p.id !== targetId);
-    setProjects(remaining);
+    const cleanTitle = cleanProjectTitle(target?.title || '') || target?.title || 'Project';
+    const actorName = currentMember?.name || 'Project Leader';
+
+    // 1. Broadcast deletion immediately across WebSocket channels (active project + global channel)
+    void realtimeHub.broadcastProjectDeleted(targetId, cleanTitle, actorName);
+
+    // 2. Broadcast deletion across local browser tabs
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('capstoneflow_project_events');
+        bc.postMessage({ type: 'project_deleted', projectId: targetId, projectTitle: cleanTitle, deletedBy: actorName });
+        bc.close();
+      }
+    } catch {}
+
+    // 3. Delete from Supabase database (cleans child rows and parent row)
     void deleteProjectFromSupabase(targetId);
 
-    // Clean up scoped localStorage keys
+    // 4. Update local projects registry
+    const remaining = projects.filter(p => p.id !== targetId);
+    setProjects(remaining);
+    try {
+      localStorage.setItem(registryKeyFor(getIdentityKey()), JSON.stringify(remaining));
+    } catch {}
+
+    // 5. Clean up scoped localStorage keys
     localStorage.removeItem(`capstoneflow_proj_${targetId}_project`);
     localStorage.removeItem(`capstoneflow_proj_${targetId}_tasks`);
     localStorage.removeItem(`capstoneflow_proj_${targetId}_phases`);
@@ -3407,12 +3563,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.removeItem(`capstoneflow_proj_${targetId}_chapters`);
     localStorage.removeItem(`capstoneflow_proj_${targetId}_activity`);
 
-    // Switch to first remaining project if deleted was active
+    // 6. Switch to first remaining project if deleted was active
     if (activeProjectId === targetId && remaining.length > 0) {
       switchProject(remaining[0].id);
     }
-    const cleanTitle = cleanProjectTitle(target?.title || '') || target?.title || 'Project';
-    toast.success(`Project "${cleanTitle}" Deleted`);
+    toast.success(`Project "${cleanTitle}" Deleted`, {
+      description: 'Project and all related database records removed. Teammates notified in real time.'
+    });
   };
 
   const pauseProject = (targetId: string) => {
