@@ -50,8 +50,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [includeManuscript, setIncludeManuscript] = useState(false);
   const [targetDefenseDate, setTargetDefenseDate] = useState('2026-11-30');
   const [teamName, setTeamName] = useState('');
-  const [adviserName, setAdviserName] = useState('Faculty Adviser');
-  const [adviserDepartment, setAdviserDepartment] = useState('Department of Computer Science');
+  const [adviserName, setAdviserName] = useState('');
+  const [adviserDepartment, setAdviserDepartment] = useState('');
 
   // Board Provisioning Animation State
   const [isProvisioning, setIsProvisioning] = useState(false);
@@ -72,6 +72,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setAccessLevel('private');
       setTemplatePreset('agile_software');
       setIncludeManuscript(false);
+      setAdviserName('');
+      setAdviserDepartment('');
+      setTeamName('');
     }
   }, [isOpen]);
 

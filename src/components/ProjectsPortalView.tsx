@@ -211,22 +211,39 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
 
   // Helper: get real members for a project from cloud Supabase, active state, or local registry
   const getProjectMembers = (projId: string): TeamMember[] => {
+    const proj = projects.find(p => p.id === projId);
+    const realAdviserName = proj?.adviser?.name?.trim();
+
+    const sanitizeRoster = (list: TeamMember[]): TeamMember[] => {
+      return list.filter(m => {
+        if (m.name === 'Faculty Adviser' && (!realAdviserName || realAdviserName === 'Faculty Adviser')) {
+          return false;
+        }
+        return true;
+      });
+    };
+
     if (cloudMembersMap[projId] && cloudMembersMap[projId].length > 0) {
-      return cloudMembersMap[projId];
+      const sanitized = sanitizeRoster(cloudMembersMap[projId]);
+      if (sanitized.length > 0) return sanitized;
     }
     if (projId === activeProjectId && members && members.length > 0) {
-      return members;
+      const sanitized = sanitizeRoster(members);
+      if (sanitized.length > 0) return sanitized;
     }
     try {
       const saved = localStorage.getItem(`capstoneflow_proj_${projId}_members`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sanitized = sanitizeRoster(parsed);
+          if (sanitized.length > 0) return sanitized;
+        }
       }
     } catch {}
-    const proj = projects.find(p => p.id === projId);
+
     if (proj?.collaborators && proj.collaborators.length > 0) {
-      return proj.collaborators.map((c, idx) => {
+      const mapped = proj.collaborators.map((c, idx) => {
         const cleanName = c.name?.replace(/^@/, '') || '';
         const isGhUser = /^[a-z0-9_-]+$/i.test(cleanName) && !cleanName.includes(' ') && cleanName.toLowerCase() !== 'project lead';
         const resolvedAvatar = c.avatar || (isGhUser ? `https://github.com/${cleanName}.png` : `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=10b981&color=fff&bold=true`);
@@ -243,6 +260,8 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
           color: '#10b981'
         };
       });
+      const sanitized = sanitizeRoster(mapped);
+      if (sanitized.length > 0) return sanitized;
     }
     return [currentMember];
   };

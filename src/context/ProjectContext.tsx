@@ -3070,12 +3070,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const createProject = async (payload: NewProjectPayload): Promise<CapstoneProject> => {
+    const userLogin = githubUser?.login;
     const userProfile = {
-      id: currentMember?.id || (githubUser?.login ? `usr_github_${githubUser.login.toLowerCase()}` : 'usr_owner_main'),
-      name: currentMember?.name || githubUser?.name || 'Project Lead',
-      email: currentMember?.email || githubUser?.email || '',
-      avatar: currentMember?.avatar || (githubUser?.avatar_url ? githubUser.avatar_url : undefined),
-      githubUsername: currentMember?.githubUsername || githubUser?.login,
+      id: userLogin ? `m_${userLogin.toLowerCase()}` : (currentMember?.id || 'usr_owner_main'),
+      name: githubUser?.name || githubUser?.login || currentMember?.name || 'Project Lead',
+      email: githubUser?.email || currentMember?.email || '',
+      avatar: githubUser?.avatar_url || (userLogin ? `https://github.com/${userLogin}.png` : currentMember?.avatar),
+      githubUsername: userLogin || currentMember?.githubUsername,
       roleTitle: currentMember?.roleTitle || 'Project Lead & Architect'
     };
 
@@ -3132,6 +3133,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           standups: [],
           revisions: []
         });
+        broadcastStructuralMutation(newProj.id);
       } catch (e) {
         console.warn('Supabase project seeding completed with local state preserved:', e);
       }
@@ -3620,6 +3622,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteProject = (targetId: string) => {
     const target = projects.find(p => p.id === targetId);
+    const cleanTitle = cleanProjectTitle(target?.title || '') || target?.title || 'Project';
+    const actorName = currentMember?.name || 'Project Leader';
 
     // Authorization check: Only Project Leader or Manager can delete
     const roleTitle = (currentMember?.roleTitle || '').toLowerCase();
@@ -3641,16 +3645,26 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     if (projects.length <= 1) {
-      toast.error('Cannot Delete Sole Project', {
-        description: 'Workspace must maintain at least one active capstone project.'
+      void realtimeHub.broadcastProjectDeleted(targetId, cleanTitle, actorName);
+      void deleteProjectFromSupabase(targetId);
+      // Clean up localStorage
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_project`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_tasks`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_phases`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_members`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_revisions`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_standups`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_chapters`);
+      localStorage.removeItem(`capstoneflow_proj_${targetId}_activity`);
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY}_projects_list`);
+      
+      toast.success(`Project "${cleanTitle}" Deleted`, {
+        description: 'Workspace reset to clean state.'
       });
+      window.location.hash = '#projects';
+      window.location.reload();
       return;
     }
-    const cleanTitle = cleanProjectTitle(target?.title || '') || target?.title || 'Project';
-    const actorName = currentMember?.name || 'Project Leader';
-
-    // 1. Broadcast deletion immediately across WebSocket channels (active project + global channel)
-    void realtimeHub.broadcastProjectDeleted(targetId, cleanTitle, actorName);
 
     // 2. Broadcast deletion across local browser tabs
     try {
