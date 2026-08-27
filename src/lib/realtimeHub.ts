@@ -50,12 +50,30 @@ export class RealtimeHub {
   private globalChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
   private activeOptions: RealtimeSubscriptionOptions | null = null;
   private currentProjectId: string | null = null;
+  private listeners: Map<string, Set<() => void>> = new Map();
   public readonly peerId: string = `peer_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+
+  public on(event: string, callback: () => void): () => void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(callback);
+    return () => {
+      this.listeners.get(event)?.delete(callback);
+    };
+  }
+
+  private emit(event: string) {
+    this.listeners.get(event)?.forEach(cb => {
+      try { cb(); } catch (e) { console.warn(e); }
+    });
+  }
 
   /**
    * Broadcast an ephemeral or data mutation event directly to all connected peers
    */
   public async broadcast(event: string, payload: Record<string, any>): Promise<boolean> {
+    this.emit(event);
     const enrichedPayload = {
       ...payload,
       _senderPeerId: this.peerId,
@@ -184,6 +202,7 @@ export class RealtimeHub {
         globalChan.on('broadcast', { event: 'structural_change' }, (msg: any) => {
           const { projectId, _senderPeerId } = msg.payload || {};
           if (_senderPeerId === this.peerId) return;
+          this.emit('structural_change');
           const currentProj = this.activeOptions?.projectId;
           if (!currentProj || !projectId || projectId === currentProj) {
             this.activeOptions?.onStructuralChange?.();
