@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { ManuscriptChapter } from '../types';
-import { 
-  BookOpen, 
-  FileText, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  Edit3, 
-  Check, 
-  Percent, 
+import {
+  BookOpen,
+  FileText,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Edit3,
+  Check,
+  Percent,
   Sparkles,
   Download,
   Copy,
@@ -25,7 +25,8 @@ import {
   Trash2,
   ExternalLink,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
@@ -186,16 +187,16 @@ export const ManuscriptView: React.FC = () => {
   }, [drafts]);
 
   const isoAverage = useMemo(() => {
-    if (isoCriteria.length === 0) return 5.0;
+    if (isoCriteria.length === 0) return '5.00';
     const sum = isoCriteria.reduce((acc, c) => acc + c.score, 0);
     return (sum / isoCriteria.length).toFixed(2);
   }, [isoCriteria]);
 
   const getIsoVerbalInterpretation = (mean: number) => {
-    if (mean >= 4.5) return { label: 'Excellent / Highly Acceptable', color: '#10b981' };
-    if (mean >= 3.5) return { label: 'Acceptable / Proficient', color: '#38bdf8' };
-    if (mean >= 2.5) return { label: 'Moderate / Needs Refinement', color: '#f59e0b' };
-    return { label: 'Unacceptable / Requires Overhaul', color: '#ef4444' };
+    if (mean >= 4.5) return { label: 'Excellent / Highly Acceptable', badgeClass: 'pastel-badge-green' };
+    if (mean >= 3.5) return { label: 'Acceptable / Proficient', badgeClass: 'pastel-badge-blue' };
+    if (mean >= 2.5) return { label: 'Moderate / Needs Refinement', badgeClass: 'pastel-badge-amber' };
+    return { label: 'Unacceptable / Requires Overhaul', badgeClass: 'pastel-badge-red' };
   };
 
   const handleUpdateDraft = (newText: string) => {
@@ -203,14 +204,13 @@ export const ManuscriptView: React.FC = () => {
       ...prev,
       [selectedChapterId]: newText
     }));
-    // Sync draft and word count back to chapter and Supabase
-    const count = newText.replace(/#|\*|_|-|`|>|\[.*?\]\(.*?\)/g, '').trim().split(/\s+/).length;
-    updateChapter(selectedChapterId, { 
-      wordCount: count, 
-      draftContent: newText, 
-      rrlEntries, 
+    const count = newText.replace(/#|\*|_|-|`|>|\[.*?\]\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean).length;
+    updateChapter(selectedChapterId, {
+      wordCount: count,
+      draftContent: newText,
+      rrlEntries,
       isoEvaluations: isoCriteria,
-      lastUpdated: new Date().toISOString().split('T')[0] 
+      lastUpdated: new Date().toISOString().split('T')[0]
     });
   };
 
@@ -251,14 +251,14 @@ export const ManuscriptView: React.FC = () => {
     setNewMethodology('');
     setNewFindings('');
     setNewGap('');
-    toast.success('Literature Study Added to Synthesis Matrix');
+    toast.success('Literature study added to synthesis matrix');
   };
 
   const handleDeleteRrl = (id: string) => {
     const updated = rrlEntries.filter(e => e.id !== id);
     setRrlEntries(updated);
     updateChapter(selectedChapterId, { rrlEntries: updated });
-    toast.info('Literature Entry Removed');
+    toast.info('Literature entry removed');
   };
 
   const handleScoreChange = (id: string, score: number) => {
@@ -330,7 +330,7 @@ export const ManuscriptView: React.FC = () => {
       }
 
       doc.save(`${project.title.replace(/\s+/g, '_')}_Thesis_Defense_Packet.pdf`);
-      toast.success('Defense Packet PDF Generated & Downloaded');
+      toast.success('Defense packet PDF compiled & downloaded');
     } catch (e: any) {
       toast.error('PDF Export Error', { description: e.message || 'Could not compile document.' });
     }
@@ -348,58 +348,59 @@ export const ManuscriptView: React.FC = () => {
     a.download = `${project.title.replace(/\s+/g, '_')}_Manuscript_Chapters_1-5.md`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Markdown (.md) Manuscript Exported');
+    toast.success('Markdown (.md) manuscript exported');
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top Banner & Mode Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Editorial Header Block */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span className="badge badge-primary">🎓 5-Chapter Academic Track</span>
-            <span className="badge badge-success">{totalWordsAcrossChapters.toLocaleString()} Total Words Drafted</span>
-            <span className="badge badge-neutral">ISO 25010: {isoAverage} ★</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <span className="pastel-badge pastel-badge-blue">5-Chapter Academic Track</span>
+            <span className="pastel-badge pastel-badge-green">{totalWordsAcrossChapters.toLocaleString()} Words Drafted</span>
+            <span className="pastel-badge pastel-badge-amber">ISO 25010: {isoAverage} / 5.00</span>
           </div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Thesis Manuscript & Academic Defense Suite</h2>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Split-screen Markdown drafting, Chapter 2 RRL matrix synthesis, ISO 25010 evaluation, and 1-click defense PDF generation.
+          <h2 className="editorial-serif" style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            Thesis Manuscript & Academic Defense Suite
+          </h2>
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '640px', lineHeight: 1.5 }}>
+            Distraction-free Markdown drafting, Chapter 2 RRL matrix synthesis, ISO 25010 quality evaluation, and 1-click defense PDF generation.
           </p>
         </div>
 
-        {/* Global Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button 
-            type="button" 
+        {/* Global Minimalist Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
             onClick={handleExportMarkdown}
             className="btn btn-secondary btn-sm"
-            style={{ gap: '6px' }}
+            style={{ gap: '6px', borderRadius: 'var(--radius-sm)' }}
             title="Download full 5-chapter markdown file"
           >
-            <FileCode size={14} />
-            <span>Export .MD</span>
+            <FileCode size={13} />
+            <span>Export .md</span>
           </button>
 
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={handleExportPDF}
             className="btn btn-primary btn-sm"
-            style={{ gap: '6px' }}
+            style={{ gap: '6px', borderRadius: 'var(--radius-sm)' }}
             title="Compile complete thesis defense portfolio to PDF"
           >
-            <Download size={14} />
+            <Download size={13} />
             <span>Download Defense PDF</span>
           </button>
         </div>
       </div>
 
-      {/* Mode Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
+      {/* Minimalist Navigation Tabs */}
+      <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0' }}>
         <button
           type="button"
           onClick={() => setActiveTab('split_editor')}
-          className={`btn btn-sm ${activeTab === 'split_editor' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ gap: '6px', fontSize: '0.78rem' }}
+          className={`minimal-tab-btn ${activeTab === 'split_editor' ? 'is-active' : ''}`}
         >
           <BookOpen size={14} />
           <span>Chapters 1-5 Split Editor</span>
@@ -408,8 +409,7 @@ export const ManuscriptView: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('rrl_matrix')}
-          className={`btn btn-sm ${activeTab === 'rrl_matrix' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ gap: '6px', fontSize: '0.78rem' }}
+          className={`minimal-tab-btn ${activeTab === 'rrl_matrix' ? 'is-active' : ''}`}
         >
           <TableIcon size={14} />
           <span>RRL Synthesis Matrix</span>
@@ -418,8 +418,7 @@ export const ManuscriptView: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('iso_evaluator')}
-          className={`btn btn-sm ${activeTab === 'iso_evaluator' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ gap: '6px', fontSize: '0.78rem' }}
+          className={`minimal-tab-btn ${activeTab === 'iso_evaluator' ? 'is-active' : ''}`}
         >
           <Award size={14} />
           <span>ISO 25010 Software Evaluation</span>
@@ -428,8 +427,7 @@ export const ManuscriptView: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('defense_packet')}
-          className={`btn btn-sm ${activeTab === 'defense_packet' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ gap: '6px', fontSize: '0.78rem' }}
+          className={`minimal-tab-btn ${activeTab === 'defense_packet' ? 'is-active' : ''}`}
         >
           <ShieldCheck size={14} />
           <span>Defense Packet Preview</span>
@@ -452,32 +450,32 @@ export const ManuscriptView: React.FC = () => {
                   type="button"
                   onClick={() => setSelectedChapterId(ch.id)}
                   style={{
-                    padding: '8px 14px',
+                    padding: '10px 14px',
                     borderRadius: 'var(--radius-sm)',
-                    border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-subtle)',
-                    background: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
+                    border: isSelected ? '1px solid var(--text-primary)' : '1px solid var(--border-subtle)',
+                    background: isSelected ? 'rgba(255, 255, 255, 0.04)' : 'var(--bg-card)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start',
-                    gap: '2px',
+                    gap: '3px',
                     cursor: 'pointer',
-                    minWidth: '160px',
+                    minWidth: '170px',
                     textAlign: 'left',
                     transition: 'all 140ms ease'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                       Chapter {ch.chapterNumber}
                     </span>
-                    <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    <span className="minimal-kbd">
                       {chWordCount} w
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
+                  <div style={{ fontSize: '0.7rem', color: isSelected ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '145px' }}>
                     {ch.title}
                   </div>
-                  <div style={{ fontSize: '0.62rem', color: isSelected ? 'var(--primary)' : 'var(--text-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                     {completedCount}/{ch.sections.length} sections done
                   </div>
                 </button>
@@ -485,19 +483,19 @@ export const ManuscriptView: React.FC = () => {
             })}
           </div>
 
-          {/* Split Screen Workspace (50% Editor / 50% Rendered Document) */}
-          <div 
-            style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 1fr)', 
+          {/* Split Screen Workspace */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(320px, 1fr) minmax(320px, 1fr)',
               gap: '16px',
-              minHeight: '560px'
+              minHeight: '580px'
             }}
           >
             {/* Left Pane: Markdown Editor */}
-            <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="minimal-bento-card" style={{ padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* Editor Toolbar */}
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <button type="button" onClick={() => handleInsertMarkdownSnippet('# ')} className="btn btn-ghost btn-xs" style={{ fontWeight: 800 }}>H1</button>
                   <button type="button" onClick={() => handleInsertMarkdownSnippet('## ')} className="btn btn-ghost btn-xs" style={{ fontWeight: 800 }}>H2</button>
@@ -507,7 +505,7 @@ export const ManuscriptView: React.FC = () => {
                   <button type="button" onClick={() => handleInsertMarkdownSnippet('> ')} className="btn btn-ghost btn-xs">Quote</button>
                   <button type="button" onClick={() => handleInsertMarkdownSnippet('| Col 1 | Col 2 |\n|---|---|\n| Data 1 | Data 2 |')} className="btn btn-ghost btn-xs">Table</button>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                   {wordCount} words • Auto-Saved
                 </div>
               </div>
@@ -517,17 +515,17 @@ export const ManuscriptView: React.FC = () => {
                 id="manuscript-editor-textarea"
                 value={activeDraft}
                 onChange={e => handleUpdateDraft(e.target.value)}
-                placeholder="Type thesis manuscript in Markdown format..."
+                placeholder="Draft academic thesis in Markdown format..."
                 style={{
                   flex: 1,
-                  padding: '16px',
+                  padding: '18px',
                   background: 'transparent',
                   color: 'var(--text-primary)',
                   border: 'none',
                   outline: 'none',
                   fontFamily: 'var(--font-mono)',
                   fontSize: '0.84rem',
-                  lineHeight: 1.6,
+                  lineHeight: 1.65,
                   resize: 'none',
                   minHeight: '480px'
                 }}
@@ -535,8 +533,8 @@ export const ManuscriptView: React.FC = () => {
 
               {/* Subsection checklist toggles footer */}
               <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Chapter {currentChapter?.chapterNumber} Checklist
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '6px' }}>
+                  Chapter {currentChapter?.chapterNumber} Milestone Checklist
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {currentChapter?.sections.map(sec => (
@@ -548,9 +546,9 @@ export const ManuscriptView: React.FC = () => {
                         padding: '3px 8px',
                         borderRadius: 'var(--radius-sm)',
                         fontSize: '0.68rem',
-                        background: sec.completed ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                        border: `1px solid ${sec.completed ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
-                        color: sec.completed ? '#10b981' : 'var(--text-secondary)',
+                        background: sec.completed ? 'rgba(48, 209, 88, 0.12)' : 'var(--bg-card)',
+                        border: `1px solid ${sec.completed ? 'rgba(48, 209, 88, 0.3)' : 'var(--border-subtle)'}`,
+                        color: sec.completed ? '#30d158' : 'var(--text-secondary)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -566,46 +564,43 @@ export const ManuscriptView: React.FC = () => {
             </div>
 
             {/* Right Pane: Rendered Academic Paper Layout */}
-            <div 
-              className="card" 
-              style={{ 
-                padding: '24px 28px', 
-                background: 'var(--bg-card)', 
-                overflowY: 'auto', 
-                maxHeight: '600px',
-                border: '1px solid var(--border-card)',
-                boxShadow: 'var(--shadow-sm)'
+            <div
+              className="minimal-bento-card"
+              style={{
+                padding: '28px 32px',
+                overflowY: 'auto',
+                maxHeight: '620px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '16px' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '18px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   Academic Document Preview
                 </span>
-                <span className="badge badge-primary" style={{ fontSize: '0.62rem' }}>
-                  APA 7th Standard
+                <span className="pastel-badge pastel-badge-blue">
+                  APA 7th Format
                 </span>
               </div>
 
               {/* Academic Typography Presentation */}
-              <div style={{ color: 'var(--text-primary)', lineHeight: 1.7, fontSize: '0.88rem' }}>
+              <div style={{ color: 'var(--text-primary)', lineHeight: 1.75, fontSize: '0.9rem' }}>
                 {activeDraft.split('\n\n').map((block, idx) => {
                   if (block.startsWith('# ')) {
                     return (
-                      <h1 key={idx} style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0', marginBottom: '12px', letterSpacing: '-0.02em' }}>
+                      <h1 key={idx} className="editorial-serif" style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0', marginBottom: '14px' }}>
                         {block.replace('# ', '')}
                       </h1>
                     );
                   }
                   if (block.startsWith('## ')) {
                     return (
-                      <h2 key={idx} style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary)', marginTop: '16px', marginBottom: '8px' }}>
+                      <h2 key={idx} className="editorial-serif" style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '18px', marginBottom: '8px' }}>
                         {block.replace('## ', '')}
                       </h2>
                     );
                   }
                   if (block.startsWith('### ')) {
                     return (
-                      <h3 key={idx} style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '12px', marginBottom: '6px' }}>
+                      <h3 key={idx} style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '14px', marginBottom: '6px' }}>
                         {block.replace('### ', '')}
                       </h3>
                     );
@@ -613,9 +608,9 @@ export const ManuscriptView: React.FC = () => {
                   if (block.startsWith('- ')) {
                     const items = block.split('\n- ');
                     return (
-                      <ul key={idx} style={{ paddingLeft: '20px', margin: '8px 0' }}>
+                      <ul key={idx} style={{ paddingLeft: '20px', margin: '10px 0' }}>
                         {items.map((item, i) => (
-                          <li key={i} style={{ marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                          <li key={i} style={{ marginBottom: '5px', color: 'var(--text-secondary)' }}>
                             {item.replace('- ', '')}
                           </li>
                         ))}
@@ -623,7 +618,7 @@ export const ManuscriptView: React.FC = () => {
                     );
                   }
                   return (
-                    <p key={idx} style={{ margin: '0 0 12px 0', color: 'var(--text-secondary)', textAlign: 'justify' }}>
+                    <p key={idx} style={{ margin: '0 0 14px 0', color: 'var(--text-secondary)', textAlign: 'justify' }}>
                       {block}
                     </p>
                   );
@@ -639,69 +634,71 @@ export const ManuscriptView: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
+              <h3 className="editorial-serif" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                 Chapter 2: Literature Synthesis Matrix
               </h3>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                 Systematic comparative analysis of prior related works, methodologies, findings, and research differentiators.
               </div>
             </div>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setIsAddRrlOpen(true)}
               className="btn btn-primary btn-sm"
-              style={{ gap: '6px' }}
+              style={{ gap: '6px', borderRadius: 'var(--radius-sm)' }}
             >
-              <Plus size={14} />
+              <Plus size={13} />
               <span>Add Literature Entry</span>
             </button>
           </div>
 
           {/* Matrix Table */}
-          <div className="card" style={{ padding: '0', overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+          <div className="minimal-bento-card" style={{ padding: '0', overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '12px 14px', width: '160px' }}>Author & Year</th>
-                  <th style={{ padding: '12px 14px', width: '220px' }}>Study / System Title</th>
-                  <th style={{ padding: '12px 14px', width: '180px' }}>Methodology / Tech</th>
-                  <th style={{ padding: '12px 14px' }}>Key Findings</th>
-                  <th style={{ padding: '12px 14px' }}>Research Gap / Capstone Edge</th>
-                  <th style={{ padding: '12px 14px', width: '50px' }}></th>
+                  <th style={{ padding: '12px 16px', width: '160px' }}>Author & Year</th>
+                  <th style={{ padding: '12px 16px', width: '220px' }}>Study / System Title</th>
+                  <th style={{ padding: '12px 16px', width: '180px' }}>Methodology</th>
+                  <th style={{ padding: '12px 16px' }}>Key Findings</th>
+                  <th style={{ padding: '12px 16px' }}>Research Gap / Capstone Edge</th>
+                  <th style={{ padding: '12px 16px', width: '40px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {rrlEntries.map((item, index) => (
-                  <tr 
-                    key={item.id} 
-                    style={{ 
-                      borderBottom: '1px solid var(--border-subtle)',
-                      background: index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' 
+                  <tr
+                    key={item.id}
+                    style={{
+                      borderBottom: index < rrlEntries.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                      background: index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'
                     }}
                   >
-                    <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--primary)', verticalAlign: 'top' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: 700, color: 'var(--text-primary)', verticalAlign: 'top' }}>
                       {item.authorYear}
                     </td>
-                    <td style={{ padding: '12px 14px', fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }}>
                       {item.title}
                     </td>
-                    <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', verticalAlign: 'top', fontFamily: 'var(--font-mono)', fontSize: '0.74rem' }}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', verticalAlign: 'top', fontFamily: 'var(--font-mono)', fontSize: '0.74rem' }}>
                       {item.methodology}
                     </td>
-                    <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', verticalAlign: 'top' }}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', verticalAlign: 'top', lineHeight: 1.45 }}>
                       {item.findings}
                     </td>
-                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 600, verticalAlign: 'top' }}>
-                      {item.gapOrDifferentiator}
+                    <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                      <span className="pastel-badge pastel-badge-green" style={{ fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: 1.35 }}>
+                        {item.gapOrDifferentiator}
+                      </span>
                     </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'top', textAlign: 'center' }}>
+                    <td style={{ padding: '14px 16px', verticalAlign: 'top', textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={() => handleDeleteRrl(item.id)}
                         className="btn btn-ghost btn-icon"
                         style={{ width: '26px', height: '26px', color: 'var(--text-muted)' }}
-                        title="Remove literature entry"
+                        title="Remove entry"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -714,32 +711,32 @@ export const ManuscriptView: React.FC = () => {
 
           {/* Add Entry Modal */}
           {isAddRrlOpen && (
-            <div className="modal-backdrop" onClick={() => setIsAddRrlOpen(false)} style={{ zIndex: 1200 }}>
-              <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-backdrop" onClick={() => setIsAddRrlOpen(false)} style={{ zIndex: 1200, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+              <div className="modal-content animate-emil-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px', background: 'var(--bg-modal)', borderRadius: 'var(--radius-lg)' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }}>Add Study to RRL Synthesis Matrix</h3>
-                  <button type="button" onClick={() => setIsAddRrlOpen(false)} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}>✕</button>
+                  <h3 className="editorial-serif" style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Add Study to RRL Synthesis Matrix</h3>
+                  <button type="button" onClick={() => setIsAddRrlOpen(false)} className="btn btn-ghost btn-icon" style={{ width: '28px', height: '28px' }}><X size={14} /></button>
                 </div>
-                <form onSubmit={handleAddRrl} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <form onSubmit={handleAddRrl} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
                     <label className="input-label">Author & Year *</label>
-                    <input type="text" className="input" placeholder="e.g. Dela Cruz et al. (2025)" value={newAuthorYear} onChange={e => setNewAuthorYear(e.target.value)} required />
+                    <input type="text" className="input-field" placeholder="e.g. Dela Cruz et al. (2025)" value={newAuthorYear} onChange={e => setNewAuthorYear(e.target.value)} required />
                   </div>
                   <div>
                     <label className="input-label">Study / System Title *</label>
-                    <input type="text" className="input" placeholder="e.g. Distributed Sensor State Synchronization" value={newTitle} onChange={e => setNewTitle(e.target.value)} required />
+                    <input type="text" className="input-field" placeholder="e.g. Distributed Sensor State Synchronization" value={newTitle} onChange={e => setNewTitle(e.target.value)} required />
                   </div>
                   <div>
                     <label className="input-label">Methodology / Architecture</label>
-                    <input type="text" className="input" placeholder="e.g. ESP32 Mesh + WebSocket Realtime" value={newMethodology} onChange={e => setNewMethodology(e.target.value)} />
+                    <input type="text" className="input-field" placeholder="e.g. ESP32 Mesh + WebSocket Realtime" value={newMethodology} onChange={e => setNewMethodology(e.target.value)} />
                   </div>
                   <div>
                     <label className="input-label">Key Findings / Strengths</label>
-                    <textarea className="input" rows={2} placeholder="Summary of proven findings..." value={newFindings} onChange={e => setNewFindings(e.target.value)} />
+                    <textarea className="input-field" rows={2} placeholder="Summary of proven findings..." value={newFindings} onChange={e => setNewFindings(e.target.value)} />
                   </div>
                   <div>
                     <label className="input-label">Identified Research Gap / Your Project's Solution</label>
-                    <textarea className="input" rows={2} placeholder="What was missing and how your capstone addresses it..." value={newGap} onChange={e => setNewGap(e.target.value)} />
+                    <textarea className="input-field" rows={2} placeholder="What was missing and how your capstone addresses it..." value={newGap} onChange={e => setNewGap(e.target.value)} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
                     <button type="button" onClick={() => setIsAddRrlOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
@@ -757,27 +754,27 @@ export const ManuscriptView: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
+              <h3 className="editorial-serif" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
                 Chapter 4: ISO 25010 Software Product Quality Evaluation
               </h3>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                 Standardized 5-point Likert scale instrument measuring Functional Suitability, Usability, Performance, and Reliability.
               </div>
             </div>
 
             {/* Mean Score Summary Box */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-card)', padding: '10px 18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)' }}>
+            <div className="minimal-bento-card" style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Weighted Grand Mean</div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: getIsoVerbalInterpretation(Number(isoAverage)).color, fontFamily: 'var(--font-mono)' }}>
-                  {isoAverage} / 5.00
+                <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Weighted Grand Mean</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                  {isoAverage} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>/ 5.00</span>
                 </div>
               </div>
-              <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '12px' }}>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Interpretation</div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '16px' }}>
+                <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Verdict</div>
+                <span className={`pastel-badge ${getIsoVerbalInterpretation(Number(isoAverage)).badgeClass}`} style={{ marginTop: '2px' }}>
                   {getIsoVerbalInterpretation(Number(isoAverage)).label}
-                </div>
+                </span>
               </div>
             </div>
           </div>
@@ -785,28 +782,28 @@ export const ManuscriptView: React.FC = () => {
           {/* Questionnaire Grid */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {isoCriteria.map((criterion, idx) => (
-              <div 
-                key={criterion.id} 
-                className="card" 
-                style={{ 
-                  padding: '14px 18px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
-                  flexWrap: 'wrap', 
-                  gap: '12px' 
+              <div
+                key={criterion.id}
+                className="minimal-bento-card"
+                style={{
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px'
                 }}
               >
                 <div style={{ maxWidth: '640px' }}>
-                  <span className="badge badge-neutral" style={{ fontSize: '0.62rem', marginBottom: '4px' }}>
+                  <span className="pastel-badge pastel-badge-blue" style={{ fontSize: '0.64rem', marginBottom: '4px' }}>
                     {criterion.category}
                   </span>
-                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.86rem', fontWeight: 500, color: 'var(--text-primary)', marginTop: '4px', lineHeight: 1.45 }}>
                     {idx + 1}. {criterion.statement}
                   </div>
                 </div>
 
-                {/* 1-5 Score Buttons */}
+                {/* 1-5 Likert Score Buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {[1, 2, 3, 4, 5].map(val => {
                     const isSelected = criterion.score === val;
@@ -816,14 +813,14 @@ export const ManuscriptView: React.FC = () => {
                         type="button"
                         onClick={() => handleScoreChange(criterion.id, val)}
                         style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '6px',
-                          border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-subtle)',
-                          background: isSelected ? 'var(--primary)' : 'var(--bg-elevated)',
-                          color: isSelected ? '#fff' : 'var(--text-secondary)',
-                          fontWeight: 800,
-                          fontSize: '0.84rem',
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '4px',
+                          border: isSelected ? '1px solid var(--text-primary)' : '1px solid var(--border-subtle)',
+                          background: isSelected ? 'var(--text-primary)' : 'var(--bg-elevated)',
+                          color: isSelected ? 'var(--bg-app)' : 'var(--text-secondary)',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
                           cursor: 'pointer',
                           transition: 'all 120ms ease'
                         }}
@@ -841,53 +838,53 @@ export const ManuscriptView: React.FC = () => {
 
       {/* TAB 4: DEFENSE PACKET PREVIEW */}
       {activeTab === 'defense_packet' && (
-        <div className="card" style={{ padding: '32px 36px', background: 'var(--bg-card)' }}>
-          <div style={{ textAlign: 'center', borderBottom: '2px solid var(--border-subtle)', paddingBottom: '24px', marginBottom: '24px' }}>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+        <div className="minimal-bento-card" style={{ padding: '36px 40px' }}>
+          <div style={{ textAlign: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '24px', marginBottom: '28px' }}>
+            <h1 className="editorial-serif" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
               {project.title.toUpperCase()}
             </h1>
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto 12px auto' }}>
+            <div style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto 12px auto' }}>
               {project.subtitle || 'Capstone Technical Implementation Portfolio & Comprehensive Defense Dossier'}
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {project.organization ? `${project.organization} ` : ''}{project.targetDefenseDate ? `• Target Defense: ${project.targetDefenseDate}` : ''}
+              {project.organization ? `${project.organization} • ` : ''}{project.targetDefenseDate ? `Target Defense: ${project.targetDefenseDate}` : ''}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-            <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Faculty Adviser</div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--primary)', marginTop: '2px' }}>{project.adviser?.name || 'Unassigned'}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+            <div style={{ padding: '16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Faculty Adviser</div>
+              <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>{project.adviser?.name || 'Unassigned'}</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{project.adviser?.email || '—'}</div>
             </div>
 
-            <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Defense Readiness Rating</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981', marginTop: '2px' }}>{project.overallProgress || 0}% Complete</div>
+            <div style={{ padding: '16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Defense Readiness Rating</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{project.overallProgress || 0}% Complete</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{totalWordsAcrossChapters.toLocaleString()} words across 5 chapters</div>
             </div>
 
-            <div style={{ padding: '14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>ISO 25010 Quality Score</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#38bdf8', marginTop: '2px' }}>{isoAverage} / 5.00</div>
+            <div style={{ padding: '16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>ISO 25010 Quality Score</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{isoAverage} / 5.00</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{getIsoVerbalInterpretation(Number(isoAverage)).label}</div>
             </div>
           </div>
 
           {/* Chapters Index */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>Compiled Manuscript Index</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h3 className="editorial-serif" style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 4px 0' }}>Compiled Manuscript Index</h3>
             {[1, 2, 3, 4, 5].map(num => (
-              <div key={num} style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div key={num} style={{ padding: '12px 18px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span className="badge badge-primary">CH {num}</span>
-                  <span style={{ fontSize: '0.86rem', fontWeight: 700 }}>Chapter {num}: {chapters.find(c => c.chapterNumber === num)?.title || 'Manuscript Chapter'}</span>
+                  <span className="minimal-kbd">CH {num}</span>
+                  <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Chapter {num}: {chapters.find(c => c.chapterNumber === num)?.title || 'Manuscript Chapter'}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => { setSelectedChapterId(num); setActiveTab('split_editor'); }}
                   className="btn btn-ghost btn-sm"
-                  style={{ gap: '4px', fontSize: '0.74rem', color: 'var(--primary)' }}
+                  style={{ gap: '4px', fontSize: '0.74rem' }}
                 >
                   <span>Edit Chapter</span>
                   <ChevronRight size={13} />

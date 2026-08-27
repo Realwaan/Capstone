@@ -2530,3 +2530,331 @@ html.light .btn-github-oauth {
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   Revisions Compliance Matrix & Monday-Style Status Pills
+   ========================================================================== */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms var(--ease-out);
+  user-select: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.status-pill:active {
+  transform: scale(0.98);
+}
+
+.status-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-pill-verified {
+  background: rgba(48, 209, 88, 0.12);
+  color: #30d158;
+  border-color: rgba(48, 209, 88, 0.28);
+}
+.status-pill-verified .status-pill-dot {
+  background: #30d158;
+  box-shadow: 0 0 6px rgba(48, 209, 88, 0.6);
+}
+
+.status-pill-resolved {
+  background: rgba(108, 108, 255, 0.14);
+  color: #8c8cff;
+  border-color: rgba(108, 108, 255, 0.32);
+}
+.status-pill-resolved .status-pill-dot {
+  background: #6c6cff;
+  box-shadow: 0 0 6px rgba(108, 108, 255, 0.6);
+}
+
+.status-pill-in_progress,
+.status-pill-in-progress {
+  background: rgba(255, 159, 10, 0.12);
+  color: #ff9f0a;
+  border-color: rgba(255, 159, 10, 0.28);
+}
+.status-pill-in_progress .status-pill-dot,
+.status-pill-in-progress .status-pill-dot {
+  background: #ff9f0a;
+  box-shadow: 0 0 6px rgba(255, 159, 10, 0.6);
+}
+
+.status-pill-pending {
+  background: rgba(255, 69, 58, 0.12);
+  color: #ff453a;
+  border-color: rgba(255, 69, 58, 0.28);
+}
+.status-pill-pending .status-pill-dot {
+  background: #ff453a;
+  box-shadow: 0 0 6px rgba(255, 69, 58, 0.6);
+}
+
+/* Telemetry Bento Cards */
+.revisions-telemetry-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  transition: all 180ms var(--ease-out);
+  cursor: pointer;
+}
+
+.revisions-telemetry-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+}
+
+.revisions-telemetry-card.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary), var(--shadow-md);
+  background: var(--bg-card-hover);
+}
+
+/* Compliance Progress Bar */
+.compliance-gauge-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.compliance-gauge-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 400ms var(--ease-out);
+  background: linear-gradient(90deg, #30d158 0%, #64d2ff 100%);
+}
+
+/* Filter Chip Strip */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 140ms var(--ease-out);
+}
+
+.filter-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: var(--border-card);
+}
+
+.filter-chip.is-active {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ==========================================================================
+   Minimalist UI: Editorial Typography & Spot Pastel Architecture
+   ========================================================================== */
+
+.editorial-serif {
+  font-family: "Newsreader", "Playfair Display", "Instrument Serif", Georgia, serif;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.editorial-doc-container {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+/* Minimal Spot Pastels */
+.pastel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pastel-badge-green {
+  background: rgba(48, 209, 88, 0.12);
+  color: #30d158;
+  border: 1px solid rgba(48, 209, 88, 0.25);
+}
+
+.pastel-badge-blue {
+  background: rgba(100, 210, 255, 0.12);
+  color: #64d2ff;
+  border: 1px solid rgba(100, 210, 255, 0.25);
+}
+
+.pastel-badge-amber {
+  background: rgba(255, 159, 10, 0.12);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.25);
+}
+
+.pastel-badge-red {
+  background: rgba(255, 69, 58, 0.12);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.25);
+}
+
+/* Minimalist Tab Navigation */
+.minimal-tab-btn {
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 140ms var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.minimal-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.minimal-tab-btn.is-active {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+}
+
+/* Minimalist Document Box */
+.minimal-bento-card {
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  padding: 24px;
+  transition: border-color 160ms ease;
+}
+
+.minimal-bento-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.minimal-kbd {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Kanban Redesign: Segmented Controls, Refined Cards & Clean Empty States
+   ========================================================================== */
+
+.kanban-segmented-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.kanban-segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  height: 28px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+  transition: all 140ms var(--ease-out);
+  user-select: none;
+}
+
+.kanban-segmented-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.kanban-segmented-btn.is-active {
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border-color: var(--border-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.kanban-command-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 6px 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all 160ms var(--ease-out);
+}
+
+.kanban-command-bar:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--border-focus), var(--shadow-sm);
+}
+
+.kanban-empty-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.015);
+  margin-top: 4px;
+  transition: all 140ms ease;
+}
+
+.kanban-empty-column:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border-card);
+}
+
+
+

@@ -4,18 +4,18 @@ import { Task, TaskStatus, TaskPriority, TaskCategory } from '../types';
 import { CustomDropdown } from './CustomDropdown';
 import { TaskTicketModal } from './TaskTicketModal';
 import { PriorityBadge, PRIORITY_DROPDOWN_OPTIONS, CATEGORY_DROPDOWN_OPTIONS, FILTER_CATEGORY_DROPDOWN_OPTIONS } from './PriorityBadge';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  ArrowRight, 
-  Trash2, 
-  Edit3, 
-  CheckSquare, 
-  Square, 
-  Clock, 
-  User, 
-  Tag, 
+import {
+  Plus,
+  Search,
+  Filter,
+  ArrowRight,
+  Trash2,
+  Edit3,
+  CheckSquare,
+  Square,
+  Clock,
+  User,
+  Tag,
   Calendar,
   AlertCircle,
   Sparkles,
@@ -28,11 +28,12 @@ import {
   UserMinus,
   MessageSquare,
   GitPullRequest,
-  Workflow
+  Workflow,
+  CornerDownLeft,
+  Inbox
 } from 'lucide-react';
 import { AIUXWorkflowsModal } from './AIUXWorkflowsModal';
 import { toast } from 'sonner';
-import { formatRelativeTime } from '../utils/time';
 
 interface KanbanViewProps {
   onOpenNewTask: () => void;
@@ -49,23 +50,22 @@ const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
   { id: 'done', label: 'Done', color: '#10b981' }
 ];
 
-export const KanbanView: React.FC<KanbanViewProps> = ({ 
-  onOpenNewTask, 
+export const KanbanView: React.FC<KanbanViewProps> = ({
+  onOpenNewTask,
   onEditTask,
-  onOpenStandupModal 
+  onOpenStandupModal
 }) => {
-  const { 
-    tasks, 
-    members, 
+  const {
+    tasks,
+    members,
     project,
     addTask,
     claimTask,
     releaseTask,
     reviewTask,
-    moveTaskStatus, 
-    toggleSubtask, 
-    deleteTask, 
-    toggleTaskAcceptanceCriteria,
+    moveTaskStatus,
+    toggleSubtask,
+    deleteTask,
     getTaskProgressPercent,
     currentMember,
     isOwner,
@@ -112,10 +112,10 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   // Filter Tasks
   const filteredTasks = tasks.filter(task => {
     const matchesCategory = filterCategory === 'all' || task.category === filterCategory;
-    const matchesAssignee = selectedAssignee === 'all' 
-      ? true 
-      : selectedAssignee === 'unassigned' 
-      ? !task.assigneeId 
+    const matchesAssignee = selectedAssignee === 'all'
+      ? true
+      : selectedAssignee === 'unassigned'
+      ? !task.assigneeId
       : selectedAssignee === 'mine'
       ? task.assigneeId === currentMember.id
       : task.assigneeId === selectedAssignee;
@@ -168,7 +168,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
     });
 
     setQuickTitle('');
-    toast.success('Task created and added to [OPEN] pool!');
+    toast.success('Task added to active sprint pool');
   };
 
   const getNextStatus = (current: TaskStatus): TaskStatus | null => {
@@ -179,45 +179,44 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      
-      {/* 1. Header & Controls Toolbar (Aligned to Shared Edges) */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        flexWrap: 'wrap', 
-        gap: '16px' 
+
+      {/* 1. Header & Controls Toolbar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '16px'
       }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-            Academic Task Matrix & Kanban
-          </h2>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, marginTop: '2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+              Academic Task Matrix & Kanban
+            </h2>
+            <span className="minimal-kbd">
+              {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
+            </span>
+          </div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
             Track sprint deliverables, checklists, and defense readiness tasks
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* View Toggle */}
-          <div style={{ 
-            display: 'flex', 
-            background: 'var(--bg-elevated)', 
-            border: '1px solid var(--border-card)', 
-            borderRadius: 'var(--radius-sm)', 
-            padding: '2px' 
-          }}>
-            <button 
-              onClick={() => handleSetViewMode('board')} 
-              className={`btn btn-sm ${viewMode === 'board' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.76rem' }}
+          {/* View Mode Segmented Control */}
+          <div className="kanban-segmented-group">
+            <button
+              onClick={() => handleSetViewMode('board')}
+              className={`kanban-segmented-btn ${viewMode === 'board' ? 'is-active' : ''}`}
+              title="Kanban Board View"
             >
               <LayoutGrid size={13} />
               <span>Board</span>
             </button>
-            <button 
-              onClick={() => handleSetViewMode('list')} 
-              className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.76rem' }}
+            <button
+              onClick={() => handleSetViewMode('list')}
+              className={`kanban-segmented-btn ${viewMode === 'list' ? 'is-active' : ''}`}
+              title="Table List View"
             >
               <List size={13} />
               <span>List</span>
@@ -225,35 +224,26 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           </div>
 
           {/* Quick Scope Filter (All / My Tasks / Open to Claim) */}
-          <div style={{ 
-            display: 'flex', 
-            background: 'var(--bg-elevated)', 
-            border: '1px solid var(--border-card)', 
-            borderRadius: 'var(--radius-sm)', 
-            padding: '2px' 
-          }}>
-            <button 
-              onClick={() => handleSetSelectedAssignee('all')} 
-              className={`btn btn-sm ${selectedAssignee === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.74rem' }}
+          <div className="kanban-segmented-group">
+            <button
+              onClick={() => handleSetSelectedAssignee('all')}
+              className={`kanban-segmented-btn ${selectedAssignee === 'all' ? 'is-active' : ''}`}
               title="Show all team deliverables"
             >
               <Layers size={12} />
               <span>All Tasks</span>
             </button>
-            <button 
-              onClick={() => handleSetSelectedAssignee('mine')} 
-              className={`btn btn-sm ${selectedAssignee === 'mine' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.74rem' }}
+            <button
+              onClick={() => handleSetSelectedAssignee('mine')}
+              className={`kanban-segmented-btn ${selectedAssignee === 'mine' ? 'is-active' : ''}`}
               title="Show only tasks claimed by me"
             >
               <UserCheck size={12} />
               <span>My Tasks</span>
             </button>
-            <button 
-              onClick={() => handleSetSelectedAssignee('unassigned')} 
-              className={`btn btn-sm ${selectedAssignee === 'unassigned' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ padding: '4px 10px', height: '28px', gap: '4px', fontSize: '0.74rem' }}
+            <button
+              onClick={() => handleSetSelectedAssignee('unassigned')}
+              className={`kanban-segmented-btn ${selectedAssignee === 'unassigned' ? 'is-active' : ''}`}
               title="Show open tasks available to claim"
             >
               <Sparkles size={12} />
@@ -266,44 +256,43 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             value={filterCategory}
             onChange={(val) => handleSetFilterCategory(val)}
             prefixIcon={Tag}
-            minWidth="150px"
+            minWidth="145px"
             size="sm"
             options={FILTER_CATEGORY_DROPDOWN_OPTIONS}
           />
 
           {onOpenStandupModal && (
-            <button 
-              onClick={onOpenStandupModal} 
-              className="btn btn-secondary btn-sm" 
-              style={{ height: '32px', gap: '6px', fontSize: '0.76rem' }}
+            <button
+              onClick={onOpenStandupModal}
+              className="btn btn-secondary btn-sm"
+              style={{ height: '32px', gap: '6px', fontSize: '0.76rem', borderRadius: 'var(--radius-sm)' }}
               title="Post today's sprint standup"
             >
-              <MessageSquare size={13} style={{ color: 'var(--primary)' }} />
+              <MessageSquare size={13} style={{ color: 'var(--text-muted)' }} />
               <span>Post Standup</span>
             </button>
           )}
 
-          <button 
-            onClick={() => setIsWorkflowsOpen(true)} 
-            className="btn btn-secondary btn-sm" 
-            style={{ 
-              height: '32px', 
-              gap: '6px', 
+          <button
+            onClick={() => setIsWorkflowsOpen(true)}
+            className="btn btn-secondary btn-sm"
+            style={{
+              height: '32px',
+              gap: '6px',
               fontSize: '0.76rem',
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15))',
-              borderColor: 'rgba(139, 92, 246, 0.4)',
-              color: '#c084fc'
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)'
             }}
-            title="AI UX Playground Multi-Step Workflows (Design Sprints, PRDs, Audits)"
+            title="AI UX Playground Multi-Step Workflows"
           >
-            <Workflow size={13} style={{ color: '#c084fc' }} />
+            <Workflow size={13} style={{ color: '#818cf8' }} />
             <span>AI Playbooks</span>
           </button>
 
-          <button 
-            onClick={onOpenNewTask} 
-            className="btn btn-primary btn-sm" 
-            style={{ height: '32px', gap: '5px', fontSize: '0.76rem' }}
+          <button
+            onClick={onOpenNewTask}
+            className="btn btn-primary btn-sm"
+            style={{ height: '32px', gap: '5px', fontSize: '0.76rem', borderRadius: 'var(--radius-sm)' }}
           >
             <Plus size={14} />
             <span>Add Detailed Task</span>
@@ -311,38 +300,24 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Quick Task Capture Bar */}
-      {/* Quick Add Task Bar */}
-      <form 
+      {/* 2. Quick Task Command Bar */}
+      <form
         onSubmit={handleQuickAdd}
-        className="quick-add-task-form"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-card)',
-          borderRadius: 'var(--radius-md)',
-          padding: '8px 14px',
-          boxShadow: 'var(--shadow-sm)',
-          flexWrap: 'wrap',
-          transition: 'all 160ms var(--ease-out)'
-        }}
+        className="kanban-command-bar"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px' }}>
-          <Plus size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-          <input 
-            type="text" 
-            placeholder="Quick add a new task (Type title and press Enter)..." 
+          <Plus size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <input
+            type="text"
+            placeholder="Quick add a new task (Type title and press Enter)..."
             value={quickTitle}
             onChange={(e) => setQuickTitle(e.target.value)}
-            className="quick-add-task-input"
             style={{
               background: 'transparent',
               border: 'none',
               outline: 'none',
               color: 'var(--text-primary)',
-              fontSize: '0.86rem',
+              fontSize: '0.84rem',
               fontWeight: 500,
               width: '100%'
             }}
@@ -353,7 +328,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           <CustomDropdown<TaskCategory>
             value={quickCategory}
             onChange={(val) => setQuickCategory(val)}
-            minWidth="115px"
+            minWidth="110px"
             size="sm"
             options={CATEGORY_DROPDOWN_OPTIONS}
           />
@@ -361,17 +336,18 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           <CustomDropdown<TaskPriority>
             value={quickPriority}
             onChange={(val) => setQuickPriority(val)}
-            minWidth="115px"
+            minWidth="110px"
             size="sm"
             options={PRIORITY_DROPDOWN_OPTIONS}
           />
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn btn-primary btn-sm"
-            style={{ height: '30px', padding: '0 14px', fontSize: '0.78rem', fontWeight: 700 }}
+            style={{ height: '28px', padding: '0 12px', fontSize: '0.76rem', borderRadius: 'var(--radius-sm)' }}
           >
-            Add
+            <CornerDownLeft size={11} style={{ marginRight: '3px' }} />
+            <span>Add</span>
           </button>
         </div>
       </form>
@@ -384,7 +360,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '12px',
-          padding: '14px 18px',
+          padding: '16px 20px',
           background: 'var(--bg-elevated)',
           border: '1px dashed var(--border-card)',
           borderRadius: 'var(--radius-md)'
@@ -406,7 +382,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
               className="btn btn-secondary btn-sm"
               style={{ fontSize: '0.74rem', height: '28px' }}
             >
-              📥 Load Sample Templates
+              Load Sample Templates
             </button>
             <button
               onClick={onOpenNewTask}
@@ -420,9 +396,9 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
         </div>
       )}
 
-      {/* 3. Board View (Responsive Smooth Scroll Track with Snap) */}
+      {/* 3. Board View */}
       {viewMode === 'board' ? (
-        <div 
+        <div
           style={{
             display: 'flex',
             gap: '16px',
@@ -436,7 +412,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           {COLUMNS.map(col => {
             const colTasks = filteredTasks.filter(t => t.status === col.id);
             return (
-              <div 
+              <div
                 key={col.id}
                 onDragOver={col.id === 'todo' ? handleDragOver : undefined}
                 onDrop={col.id === 'todo' ? (e) => handleDrop(e, col.id) : undefined}
@@ -457,34 +433,34 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                 }}
               >
                 {/* Column Header */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   marginBottom: '14px',
                   paddingBottom: '8px',
                   borderBottom: '1px solid var(--border-subtle)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: col.color }} />
-                    <span style={{ 
-                      fontSize: '0.8rem', 
-                      fontWeight: 800, 
-                      color: 'var(--text-primary)', 
-                      textTransform: 'uppercase', 
-                      letterSpacing: '0.05em', 
-                      fontFamily: 'var(--font-mono)' 
+                    <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: col.color }} />
+                    <span style={{
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      fontFamily: 'var(--font-mono)'
                     }}>
                       {col.label}
                     </span>
                   </div>
-                  <span className="badge badge-neutral" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
-                    {colTasks.length}
+                  <span className="minimal-kbd" style={{ fontSize: '0.66rem' }}>
+                    {colTasks.length.toString().padStart(2, '0')}
                   </span>
                 </div>
 
                 {/* Column Task Cards Stack */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
                   {colTasks.map(task => {
                     const assignee = members.find(m => m.id === task.assigneeId);
                     const completedSubtasks = task.subtasks.filter(st => st.completed).length;
@@ -496,12 +472,12 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     const canStageByDrag = isOwner && task.status === 'backlog';
 
                     return (
-                      <div 
+                      <div
                         key={task.id}
                         draggable={canStageByDrag}
                         onDragStart={canStageByDrag ? (e) => handleDragStart(e, task.id) : undefined}
-                        className="card stagger-item"
                         onClick={() => setSelectedTicketId(task.id)}
+                        className="minimal-bento-card"
                         style={{
                           padding: '14px',
                           cursor: 'pointer',
@@ -511,7 +487,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '10px',
-                          transition: 'transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out)'
+                          transition: 'all 140ms var(--ease-out)'
                         }}
                       >
                         {/* Layer 1: Badges & Status Tag */}
@@ -521,22 +497,13 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                               {task.category}
                             </span>
                             {isUnassigned ? (
-                              <span className="badge badge-info" style={{ 
-                                fontFamily: 'var(--font-mono)', 
-                                fontSize: '0.64rem', 
-                                fontWeight: 800,
-                                padding: '1px 5px',
-                                borderRadius: '3px'
-                              }}>
-                                [OPEN]
+                              <span className="pastel-badge pastel-badge-blue" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
+                                Open
                               </span>
                             ) : (
-                              <span className="badge badge-primary" style={{ 
-                                fontFamily: 'var(--font-mono)', 
-                                fontSize: '0.64rem', 
-                                fontWeight: 800,
+                              <span className="pastel-badge pastel-badge-green" style={{
+                                fontSize: '0.62rem',
                                 padding: '1px 5px',
-                                borderRadius: '3px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -552,10 +519,10 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
 
                         {/* Layer 2: Title & Description */}
                         <div>
-                          <div style={{ 
-                            fontSize: '0.86rem', 
-                            fontWeight: 700, 
-                            color: 'var(--text-primary)', 
+                          <div style={{
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                            color: 'var(--text-primary)',
                             lineHeight: 1.35,
                             marginBottom: '4px'
                           }}>
@@ -563,15 +530,15 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                           </div>
 
                           {task.description && (
-                            <p style={{ 
-                              fontSize: '0.75rem', 
-                              color: 'var(--text-secondary)', 
-                              lineHeight: 1.4, 
+                            <p style={{
+                              fontSize: '0.74rem',
+                              color: 'var(--text-secondary)',
+                              lineHeight: 1.4,
                               margin: 0,
-                              display: '-webkit-box', 
-                              WebkitLineClamp: 2, 
-                              WebkitBoxOrient: 'vertical', 
-                              overflow: 'hidden' 
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
                             }}>
                               {task.description}
                             </p>
@@ -580,13 +547,13 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
 
                         {/* Layer 3: Acceptance Criteria & Progress */}
                         {task.acceptanceCriteria && task.acceptanceCriteria.length > 0 && (
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '5px', 
-                            fontSize: '0.7rem', 
-                            color: 'var(--text-muted)', 
-                            fontFamily: 'var(--font-mono)' 
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '0.68rem',
+                            color: 'var(--text-muted)',
+                            fontFamily: 'var(--font-mono)'
                           }}>
                             <CheckCircle2 size={12} style={{ color: 'var(--success)' }} />
                             <span>{task.acceptanceCriteria.filter(c => c.completed).length}/{task.acceptanceCriteria.length} acceptance criteria</span>
@@ -595,17 +562,17 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
 
                         {/* Subtasks / Progress Bar */}
                         {(() => {
-                          const subtaskPct = totalSubtasks > 0 
-                            ? Math.round((completedSubtasks / totalSubtasks) * 100) 
+                          const subtaskPct = totalSubtasks > 0
+                            ? Math.round((completedSubtasks / totalSubtasks) * 100)
                             : progressPct;
                           return (
-                            <div style={{ 
-                              background: 'var(--bg-elevated)', 
-                              padding: '8px 10px', 
+                            <div style={{
+                              background: 'rgba(0, 0, 0, 0.15)',
+                              padding: '6px 8px',
                               borderRadius: 'var(--radius-sm)',
-                              border: '1px solid var(--border-subtle)' 
+                              border: '1px solid var(--border-subtle)'
                             }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
                                 <span>
                                   {totalSubtasks > 0 ? `Subtasks (${completedSubtasks}/${totalSubtasks})` : task.status === 'done' ? 'Completed' : 'Progress'}
                                 </span>
@@ -613,26 +580,26 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   {subtaskPct}%
                                 </span>
                               </div>
-                              <div className="progress-bar-container" style={{ height: '5px', background: 'var(--border-subtle)' }}>
-                                <div 
-                                  className="progress-bar-fill" 
-                                  style={{ 
+                              <div className="progress-bar-container" style={{ height: '4px', background: 'var(--border-subtle)' }}>
+                                <div
+                                  className="progress-bar-fill"
+                                  style={{
                                     width: `${subtaskPct}%`,
                                     background: subtaskPct === 100 ? 'var(--success)' : subtaskPct >= 50 ? 'var(--primary)' : subtaskPct > 0 ? 'var(--warning)' : 'transparent',
                                     transition: 'width 240ms var(--ease-out)'
-                                  }} 
+                                  }}
                                 />
                               </div>
                             </div>
                           );
                         })()}
 
-                        {/* Layer 4: Clean Metadata Row (Assignee + Due Date) */}
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
-                          paddingTop: '8px', 
+                        {/* Layer 4: Assignee & Due Date Row */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingTop: '8px',
                           borderTop: '1px solid var(--border-subtle)',
                           fontSize: '0.72rem'
                         }}>
@@ -641,26 +608,26 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                             {assignee ? (
                               <>
                                 <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
-                                  <img 
-                                    src={assignee.avatar} 
-                                    alt={assignee.name} 
-                                    style={{ 
-                                      width: '20px', 
-                                      height: '20px', 
-                                      borderRadius: '50%', 
+                                  <img
+                                    src={assignee.avatar}
+                                    alt={assignee.name}
+                                    style={{
+                                      width: '18px',
+                                      height: '18px',
+                                      borderRadius: '50%',
                                       border: isMemberOnline(assignee.id) ? '1.5px solid #10b981' : (isClaimedByMe ? '1.5px solid var(--primary)' : '1px solid var(--border-subtle)'),
                                       objectFit: 'cover',
                                       flexShrink: 0
-                                    }} 
+                                    }}
                                   />
                                   {isMemberOnline(assignee.id) && (
-                                    <span 
+                                    <span
                                       style={{
                                         position: 'absolute',
                                         bottom: '-1px',
                                         right: '-1px',
-                                        width: '6px',
-                                        height: '6px',
+                                        width: '5px',
+                                        height: '5px',
                                         borderRadius: '50%',
                                         backgroundColor: '#10b981',
                                         border: '1px solid var(--bg-surface)'
@@ -668,8 +635,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                     />
                                   )}
                                 </div>
-                                <span style={{ 
-                                  color: isClaimedByMe ? 'var(--primary)' : 'var(--text-secondary)', 
+                                <span style={{
+                                  color: isClaimedByMe ? 'var(--text-primary)' : 'var(--text-secondary)',
                                   fontWeight: 600,
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -686,14 +653,14 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                             )}
                           </div>
 
-                          {/* Due Date (white-space: nowrap prevents text wrapping) */}
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '4px', 
-                            color: 'var(--text-muted)', 
+                          {/* Due Date */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: 'var(--text-muted)',
                             fontFamily: 'var(--font-mono)',
-                            fontSize: '0.7rem',
+                            fontSize: '0.68rem',
                             whiteSpace: 'nowrap',
                             flexShrink: 0
                           }}>
@@ -702,18 +669,18 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Layer 5: Dedicated Action Row (Tactile Emil Kowalski Buttons) */}
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
+                        {/* Layer 5: Dedicated Action Row */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
                           gap: '6px',
-                          paddingTop: '4px'
+                          paddingTop: '2px'
                         }}>
-                          {/* Left: Contextual Primary Action Button */}
+                          {/* Contextual Action Button */}
                           <div>
                             {isUnassigned ? (
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   claimTask(task.id);
@@ -721,7 +688,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                 className="btn btn-primary btn-sm"
                                 disabled={currentMember.role === 'adviser' || currentMember.role === 'coordinator'}
                                 style={{
-                                  padding: '0 10px',
+                                  padding: '0 8px',
                                   fontSize: '0.68rem',
                                   height: '24px',
                                   gap: '4px',
@@ -740,20 +707,20 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                     setSelectedTicketId(task.id);
                                   }}
                                   className="btn btn-secondary btn-sm"
-                                  style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', color: '#fbbf24', gap: '3px' }}
-                                  title="Open the evidence checkpoint and submit for peer review"
+                                  style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', gap: '3px', borderRadius: 'var(--radius-sm)' }}
+                                  title="Open evidence checkpoint"
                                 >
                                   <GitPullRequest size={11} />
                                   <span>Submit</span>
                                 </button>
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     releaseTask(task.id);
                                   }}
                                   className="btn btn-ghost btn-icon"
                                   style={{ width: '24px', height: '24px', padding: 0, color: 'var(--text-muted)' }}
-                                  title="Unclaim ticket (/unclaim)"
+                                  title="Unclaim task"
                                 >
                                   <UserMinus size={11} />
                                 </button>
@@ -765,7 +732,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   reviewTask(task.id, 'Peer review completed via Kanban');
                                 }}
                                 className="btn btn-primary btn-sm"
-                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', background: 'var(--success)', borderColor: 'var(--success)', gap: '3px' }}
+                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', gap: '3px', borderRadius: 'var(--radius-sm)' }}
                                 title="Complete independent peer review"
                               >
                                 <CheckCircle2 size={11} />
@@ -778,18 +745,18 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                   reviewTask(task.id, currentMember.role === 'adviser' ? 'Faculty adviser approval recorded via Kanban' : 'Approved via Adviser Consultation');
                                 }}
                                 className="btn btn-primary btn-sm"
-                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', background: 'var(--success)', borderColor: 'var(--success)', gap: '3px' }}
+                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', gap: '3px', borderRadius: 'var(--radius-sm)' }}
                                 title={currentMember.role === 'adviser' ? "Record faculty adviser approval" : "Verify and approve per adviser consultation"}
                               >
                                 <CheckCircle2 size={11} />
-                                <span>{currentMember.role === 'adviser' ? 'Approve' : 'Verify Consultation'}</span>
+                                <span>{currentMember.role === 'adviser' ? 'Approve' : 'Verify'}</span>
                               </button>
                             ) : null}
                           </div>
 
-                          {/* Right: Auxiliary Controls (Edit, Delete, Next) */}
+                          {/* Auxiliary Controls */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
-                            <button 
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onEditTask(task);
@@ -798,11 +765,11 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                               style={{ width: '24px', height: '24px' }}
                               title="Edit Task"
                             >
-                              <Edit3 size={12} />
+                              <Edit3 size={11} />
                             </button>
 
                             {canDeleteTasks && (
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   deleteTask(task.id);
@@ -811,18 +778,18 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                                 style={{ width: '24px', height: '24px', color: 'var(--danger)' }}
                                 title="Delete Task"
                               >
-                                <Trash2 size={12} />
+                                <Trash2 size={11} />
                               </button>
                             )}
 
                             {nextStatus && isOwner && (
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   moveTaskStatus(task.id, nextStatus);
                                 }}
-                                className="btn btn-primary btn-sm"
-                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', gap: '3px' }}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '0 8px', height: '24px', fontSize: '0.68rem', gap: '3px', borderRadius: 'var(--radius-sm)' }}
                                 title={`Move to ${nextStatus.replace('_', ' ')}`}
                               >
                                 <span>Next</span>
@@ -836,23 +803,15 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                   })}
 
                   {colTasks.length === 0 && (
-                    <div style={{ 
-                      padding: '32px 14px', 
-                      textAlign: 'center', 
-                      border: '1px dashed var(--border-card)', 
-                      borderRadius: 'var(--radius-md)', 
-                      color: 'var(--text-muted)', 
-                      fontSize: '0.78rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      marginTop: '8px'
-                    }}>
-                      <span style={{ fontWeight: 600 }}>No tasks in this stage</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        {col.id === 'todo' && isOwner ? 'Stage backlog work here or add a scoped task' : 'Open a task to complete the next workflow gate'}
+                    <div className="kanban-empty-column">
+                      <Inbox size={22} style={{ color: 'var(--text-muted)', opacity: 0.5, marginBottom: '6px' }} />
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        No tasks in {col.label}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px', maxWidth: '200px' }}>
+                        {col.id === 'todo' && isOwner
+                          ? 'Stage backlog deliverables here'
+                          : 'Tasks will appear as sprint deliverables advance'}
                       </span>
                     </div>
                   )}
@@ -862,7 +821,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           })}
         </div>
       ) : (
-        /* 4. List View (Aligned to Shared Edges) */
+        /* 4. List View */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{
             display: 'grid',
@@ -871,11 +830,11 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             background: 'var(--bg-elevated)',
             border: '1px solid var(--border-card)',
             borderRadius: 'var(--radius-md)',
-            fontSize: '0.72rem',
-            fontWeight: 800,
+            fontSize: '0.7rem',
+            fontWeight: 700,
             color: 'var(--text-muted)',
             textTransform: 'uppercase',
-            letterSpacing: '0.05em',
+            letterSpacing: '0.04em',
             fontFamily: 'var(--font-mono)'
           }}>
             <span>Task Deliverable</span>
@@ -893,7 +852,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
               const isUnassigned = !task.assigneeId;
 
               return (
-                <div 
+                <div
                   key={task.id}
                   onClick={() => setSelectedTicketId(task.id)}
                   style={{
@@ -905,21 +864,21 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     border: '1px solid var(--border-card)',
                     borderRadius: 'var(--radius-md)',
                     cursor: 'pointer',
-                    transition: 'background-color 140ms var(--ease-out), border-color 140ms var(--ease-out)'
+                    transition: 'all 140ms var(--ease-out)'
                   }}
                   className="dropdown-option-hover"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, paddingRight: '12px' }}>
                     {isUnassigned ? (
-                      <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.64rem', fontWeight: 800 }}>
-                        [OPEN]
+                      <span className="pastel-badge pastel-badge-blue" style={{ fontSize: '0.62rem' }}>
+                        Open
                       </span>
                     ) : (
-                      <span className="badge badge-primary" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.64rem', fontWeight: 800 }}>
-                        [CLAIMED]
+                      <span className="pastel-badge pastel-badge-green" style={{ fontSize: '0.62rem' }}>
+                        Claimed
                       </span>
                     )}
-                    <span style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {task.title}
                     </span>
                   </div>
@@ -934,25 +893,25 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {assignee ? (
                       <>
-                        <img 
-                          src={assignee.avatar} 
-                          alt={assignee.name} 
-                          style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} 
+                        <img
+                          src={assignee.avatar}
+                          alt={assignee.name}
+                          style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }}
                         />
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>
                           {assignee.name.split(' ')[0]}
                         </span>
                       </>
                     ) : (
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           claimTask(task.id);
                         }}
                         className="btn btn-primary btn-sm"
-                        style={{ padding: '0 8px', height: '22px', fontSize: '0.66rem' }}
+                        style={{ padding: '0 8px', height: '22px', fontSize: '0.66rem', borderRadius: 'var(--radius-sm)' }}
                       >
-                        ⚡ Claim
+                        Claim
                       </button>
                     )}
                   </div>
@@ -968,7 +927,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px' }}>
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditTask(task);
@@ -976,7 +935,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                       className="btn btn-ghost btn-icon"
                       style={{ width: '26px', height: '26px' }}
                     >
-                      <Edit3 size={13} />
+                      <Edit3 size={12} />
                     </button>
                   </div>
                 </div>
