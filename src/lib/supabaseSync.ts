@@ -278,6 +278,30 @@ export const fetchAllProjectsFromSupabase = async (): Promise<CapstoneProject[]>
   }
 };
 
+export const fetchAllTeamMembersFromSupabase = async (): Promise<Record<string, TeamMember[]>> => {
+  if (!isSupabaseConfigured() || !supabase) return {};
+  try {
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('*')
+      .limit(1000);
+
+    if (error || !data) return {};
+
+    const map: Record<string, TeamMember[]> = {};
+    for (const row of data) {
+      const projId = row.project_id;
+      if (!projId) continue;
+      if (!map[projId]) map[projId] = [];
+      map[projId].push(mapSupabaseMemberRow(row));
+    }
+    return map;
+  } catch (e) {
+    console.warn('[supabaseSync] fetchAllTeamMembersFromSupabase error:', e);
+    return {};
+  }
+};
+
 export const fetchMembershipProjectsFromSupabase = async (
   identityLogin?: string,
   identityEmail?: string

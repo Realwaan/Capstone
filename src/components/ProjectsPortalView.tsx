@@ -8,6 +8,8 @@ import { CapStoneFlowLogo } from './CapStoneFlowLogo';
 import { CapstoneProject, TeamMember, AccessModifier } from '../types';
 import { cleanProjectTitle } from '../lib/projectGenerator';
 import { canUserAccessProject } from '../lib/accessControl';
+import { fetchAllTeamMembersFromSupabase } from '../lib/supabaseSync';
+import { realtimeHub } from '../lib/realtimeHub';
 import { 
   FolderKanban, 
   LayoutDashboard,
@@ -138,6 +140,37 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const [cloudMembersMap, setCloudMembersMap] = useState<Record<string, TeamMember[]>>({});
+
+  // Real-time multi-project team members loader
+  const refreshCloudMembers = React.useCallback(async () => {
+    try {
+      const map = await fetchAllTeamMembersFromSupabase();
+      if (map && Object.keys(map).length > 0) {
+        setCloudMembersMap(map);
+      }
+    } catch (e) {
+      console.warn('[ProjectsPortalView] Members fetch notice:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCloudMembers();
+    const interval = setInterval(refreshCloudMembers, 8000);
+    const unsub = realtimeHub.on('structural_change', () => {
+      refreshCloudMembers();
+    });
+    const unsubPresence = realtimeHub.on('presence', () => {
+      refreshCloudMembers();
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsub();
+      unsubPresence();
+    };
+  }, [refreshCloudMembers]);
+
   // Helper: compute days left until target defense
   const getDaysUntilDefense = (dateStr?: string): { days: number; isUrgent: boolean; isPast: boolean } => {
     if (!dateStr) return { days: 45, isUrgent: false, isPast: false };
@@ -176,8 +209,11 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
     }
   };
 
-  // Helper: get real members for a project from scoped localStorage or active state
+  // Helper: get real members for a project from cloud Supabase, active state, or local registry
   const getProjectMembers = (projId: string): TeamMember[] => {
+    if (cloudMembersMap[projId] && cloudMembersMap[projId].length > 0) {
+      return cloudMembersMap[projId];
+    }
     if (projId === activeProjectId && members && members.length > 0) {
       return members;
     }
@@ -190,16 +226,23 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
     } catch {}
     const proj = projects.find(p => p.id === projId);
     if (proj?.collaborators && proj.collaborators.length > 0) {
-      return proj.collaborators.map((c, idx) => ({
-        id: c.id || `m_${projId}_${idx}`,
-        name: c.name,
-        email: '',
-        role: (c.permission === 'adviser' ? 'adviser' : c.permission === 'owner' || c.permission === 'editor' ? 'leader' : 'developer') as any,
-        roleTitle: c.role || 'Contributor',
-        permissionLevel: (c.permission || 'member') as any,
-        avatar: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=10b981&color=fff&bold=true`,
-        color: '#10b981'
-      }));
+      return proj.collaborators.map((c, idx) => {
+        const cleanName = c.name?.replace(/^@/, '') || '';
+        const isGhUser = /^[a-z0-9_-]+$/i.test(cleanName) && !cleanName.includes(' ') && cleanName.toLowerCase() !== 'project lead';
+        const resolvedAvatar = c.avatar || (isGhUser ? `https://github.com/${cleanName}.png` : `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=10b981&color=fff&bold=true`);
+
+        return {
+          id: c.id || `m_${projId}_${idx}`,
+          name: c.name,
+          email: '',
+          role: (c.permission === 'adviser' ? 'adviser' : c.permission === 'owner' || c.permission === 'editor' ? 'leader' : 'developer') as any,
+          roleTitle: c.role || 'Contributor',
+          permissionLevel: (c.permission || 'member') as any,
+          avatar: resolvedAvatar,
+          githubUsername: isGhUser ? cleanName : undefined,
+          color: '#10b981'
+        };
+      });
     }
     return [currentMember];
   };
@@ -727,7 +770,10 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
                 const inviteCode = p.inviteCode || `CF-${p.id.slice(-6).toUpperCase()}`;
                 const userRole = p.userRole || (p.isOwner !== false ? 'owner' : 'member');
                 const projMembers = getProjectMembers(p.id);
-                const onlineMembers = projMembers.filter(m => isMemberOnline(m.id));
+                const onlineMembers = projMembers.filter(m => 
+                  isMemberOnline(m.id) || 
+                  onlineUsers.some(u => u.memberId === m.id || (m.githubUsername && u.githubUsername?.toLowerCase() === m.githubUsername.toLowerCase()))
+                );
                 const hasOnline = onlineMembers.length > 0;
 
                 return (
@@ -1025,8 +1071,14 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center' }}>
                             {projMembers.slice(0, 4).map((member, i) => {
-                              const isOnline = isMemberOnline(member.id);
-                              const avatarSrc = member.avatar || (member.githubUsername ? `https://github.com/${member.githubUsername}.png` : `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=10b981&color=fff&bold=true`);
+                              const isOnline = isMemberOnline(member.id) || onlineUsers.some(u => u.memberId === member.id || (member.githubUsername && u.githubUsername?.toLowerCase() === member.githubUsername.toLowerCase()));
+                              const cleanGhName = member.githubUsername || (member.name?.replace(/^@/, '') || '');
+                              const isGhLogin = /^[a-z0-9_-]+$/i.test(cleanGhName) && !cleanGhName.includes(' ') && cleanGhName.toLowerCase() !== 'project lead';
+                              const avatarSrc = (member.avatar && !member.avatar.includes('ui-avatars.com')) 
+                                ? member.avatar 
+                                : (isGhLogin 
+                                    ? `https://github.com/${cleanGhName}.png` 
+                                    : member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=10b981&color=fff&bold=true`);
 
                               return (
                                 <div key={member.id || i} style={{ position: 'relative', marginLeft: i > 0 ? '-8px' : 0 }}>
