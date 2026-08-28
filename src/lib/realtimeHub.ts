@@ -125,6 +125,61 @@ export class RealtimeHub {
   }
 
   /**
+   * Broadcast a community thread creation/update across all connected peers
+   */
+  public async broadcastCommunityThread(eventType: 'UPSERT' | 'DELETE', thread: any): Promise<boolean> {
+    return this.broadcast('community_thread_change', {
+      eventType,
+      thread
+    });
+  }
+
+  /**
+   * Broadcast a community reply creation/update across all connected peers
+   */
+  public async broadcastCommunityReply(eventType: 'UPSERT' | 'DELETE', reply: any): Promise<boolean> {
+    return this.broadcast('community_reply_change', {
+      eventType,
+      reply
+    });
+  }
+
+  /**
+   * Broadcast a community like count update across all connected peers
+   */
+  public async broadcastCommunityLike(threadId: string, likesCount: number, userId: string, hasLiked: boolean): Promise<boolean> {
+    return this.broadcast('community_like_change', {
+      threadId,
+      likesCount,
+      userId,
+      hasLiked
+    });
+  }
+
+  /**
+   * Broadcast a prediction creation/update across all connected peers
+   */
+  public async broadcastPrediction(eventType: 'UPSERT' | 'DELETE', prediction: any): Promise<boolean> {
+    return this.broadcast('prediction_change', {
+      eventType,
+      prediction
+    });
+  }
+
+  /**
+   * Broadcast a prediction vote change across all connected peers
+   */
+  public async broadcastPredictionVote(predictionId: string, options: any[], totalVotes: number, userId: string, selectedOptionId: string): Promise<boolean> {
+    return this.broadcast('prediction_vote_change', {
+      predictionId,
+      options,
+      totalVotes,
+      userId,
+      selectedOptionId
+    });
+  }
+
+  /**
    * Subscribe to real-time database CDC replication, broadcast channels, and presence tracking
    */
   public subscribe(options: RealtimeSubscriptionOptions): () => void {

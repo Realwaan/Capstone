@@ -21,6 +21,8 @@ import {
   castPredictionVote,
   fetchPredictionLeaderboard 
 } from '../lib/supabaseSync';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { realtimeHub } from '../lib/realtimeHub';
 import { useProject } from '../context/ProjectContext';
 import { toast } from 'sonner';
 
@@ -161,8 +163,60 @@ export const PredictionsView: React.FC = () => {
     }
   };
 
+  // Real-Time Channel Subscription for instant cross-device forecast updates (< 50ms)
   useEffect(() => {
     loadData();
+
+    if (!isSupabaseConfigured() || !supabase) return;
+
+    const channel = supabase.channel('capstone_predictions_feed', {
+      config: { broadcast: { self: false, ack: true } }
+    });
+
+    channel.on('broadcast', { event: 'prediction_change' }, (msg: any) => {
+      const { eventType, prediction } = msg.payload || {};
+      if (!prediction) return;
+      if (eventType === 'DELETE') {
+        setPredictions(prev => prev.filter(p => p.id !== prediction.id));
+      } else {
+        setPredictions(prev => {
+          const exists = prev.some(p => p.id === prediction.id);
+          if (exists) {
+            return prev.map(p => p.id === prediction.id ? { ...p, ...prediction } : p);
+          }
+          return [prediction, ...prev];
+        });
+      }
+    });
+
+    channel.on('broadcast', { event: 'prediction_vote_change' }, (msg: any) => {
+      const { predictionId, options, totalVotes, userId, selectedOptionId } = msg.payload || {};
+      if (!predictionId) return;
+      setPredictions(prev => prev.map(p => {
+        if (p.id === predictionId) {
+          return {
+            ...p,
+            options: options || p.options,
+            totalVotes: typeof totalVotes === 'number' ? totalVotes : p.totalVotes,
+            userVotedOptionId: userId === activeUserId ? selectedOptionId : p.userVotedOptionId
+          };
+        }
+        return p;
+      }));
+    });
+
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prediction_votes' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [activeUserId]);
 
   const handleVote = async (predictionId: string, optionId: string) => {
@@ -185,6 +239,9 @@ export const PredictionsView: React.FC = () => {
       totalVotes,
       userVotedOptionId: optionId
     } : p));
+
+    // Broadcast prediction vote update to all peer browser windows
+    realtimeHub.broadcastPredictionVote(predictionId, updatedOptions, totalVotes, activeUserId, optionId);
 
     toast.success('Prediction Vote Recorded!', {
       description: 'Your forecast has been counted into the community consensus.'
@@ -247,6 +304,10 @@ export const PredictionsView: React.FC = () => {
       };
 
       setPredictions(prev => [newPredItem, ...prev]);
+
+      // Broadcast new forecast to all other peers immediately (< 50ms)
+      realtimeHub.broadcastPrediction('UPSERT', newPredItem);
+
       toast.success('New Forecast Published!', {
         description: 'Team members and peers can now cast their predictions.'
       });
@@ -276,7 +337,7 @@ export const PredictionsView: React.FC = () => {
         borderBottom: '1px solid var(--border-subtle)', 
         background: 'var(--bg-card)', 
         backdropFilter: 'blur(16px)',
-        padding: '24px 24px 20px 24px' 
+        padding: '32px 24px 22px 24px' 
       }}>
         <div style={{ 
           maxWidth: '1080px', 
@@ -289,9 +350,9 @@ export const PredictionsView: React.FC = () => {
           gap: '16px' 
         }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <span style={{ 
-                padding: '2px 8px', 
+                padding: '3px 9px', 
                 borderRadius: 'var(--radius-full)', 
                 fontSize: '0.68rem', 
                 fontWeight: 700, 
@@ -308,10 +369,10 @@ export const PredictionsView: React.FC = () => {
               </span>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>• Predict outcomes, earn analyst points</span>
             </div>
-            <h1 style={{ fontSize: '1.65rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)', lineHeight: 1.25 }}>
               Defense Predictions & Leaderboard
             </h1>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0', maxWidth: '580px' }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '6px 0 0 0', maxWidth: '580px', lineHeight: 1.45 }}>
               Cast forecasts on title defenses, sprint milestone deadlines, and Capstone Expo awards with peer consensus.
             </p>
           </div>

@@ -15,9 +15,7 @@ import {
   Layers,
   GraduationCap,
   Flame,
-  HelpCircle,
-  CheckCircle,
-  CornerDownRight
+  HelpCircle
 } from 'lucide-react';
 import { CommunityThread, CommunityReply } from '../types';
 import { 
@@ -27,6 +25,8 @@ import {
   fetchThreadReplies, 
   createThreadReply 
 } from '../lib/supabaseSync';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { realtimeHub } from '../lib/realtimeHub';
 import { useProject } from '../context/ProjectContext';
 import { toast } from 'sonner';
 
@@ -130,9 +130,79 @@ export const CommunityView: React.FC = () => {
     }
   };
 
+  // Real-Time Channel Subscription for instant cross-device updates (< 50ms)
   useEffect(() => {
     loadThreads();
-  }, [activeUserId]);
+
+    if (!isSupabaseConfigured() || !supabase) return;
+
+    const channel = supabase.channel('capstone_community_feed', {
+      config: { broadcast: { self: false, ack: true } }
+    });
+
+    channel.on('broadcast', { event: 'community_thread_change' }, (msg: any) => {
+      const { eventType, thread } = msg.payload || {};
+      if (!thread) return;
+      if (eventType === 'DELETE') {
+        setThreads(prev => prev.filter(t => t.id !== thread.id));
+      } else {
+        setThreads(prev => {
+          const exists = prev.some(t => t.id === thread.id);
+          if (exists) {
+            return prev.map(t => t.id === thread.id ? { ...t, ...thread } : t);
+          }
+          return [thread, ...prev];
+        });
+      }
+    });
+
+    channel.on('broadcast', { event: 'community_reply_change' }, (msg: any) => {
+      const { reply } = msg.payload || {};
+      if (!reply) return;
+      if (activeThreadDetail && activeThreadDetail.id === reply.threadId) {
+        setThreadReplies(prev => {
+          if (prev.some(r => r.id === reply.id)) return prev;
+          return [...prev, reply];
+        });
+      }
+      setThreads(prev => prev.map(t => t.id === reply.threadId ? { ...t, repliesCount: t.repliesCount + 1 } : t));
+    });
+
+    channel.on('broadcast', { event: 'community_like_change' }, (msg: any) => {
+      const { threadId, likesCount, userId, hasLiked } = msg.payload || {};
+      if (!threadId) return;
+      setThreads(prev => prev.map(t => {
+        if (t.id === threadId) {
+          return {
+            ...t,
+            likesCount: typeof likesCount === 'number' ? likesCount : t.likesCount,
+            hasLiked: userId === activeUserId ? hasLiked : t.hasLiked
+          };
+        }
+        return t;
+      }));
+    });
+
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_threads' }, () => {
+        loadThreads();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_likes' }, () => {
+        loadThreads();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_replies' }, () => {
+        if (activeThreadDetail) {
+          fetchThreadReplies(activeThreadDetail.id, activeUserId).then(reps => {
+            if (reps) setThreadReplies(reps);
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeUserId, activeThreadDetail?.id]);
 
   const handleOpenDetail = async (thread: CommunityThread) => {
     setActiveThreadDetail(thread);
@@ -190,6 +260,9 @@ export const CommunityView: React.FC = () => {
       setActiveThreadDetail(prev => prev ? { ...prev, hasLiked: newLiked, likesCount: newCount } : null);
     }
 
+    // Broadcast like change to all active browser windows immediately
+    realtimeHub.broadcastCommunityLike(threadId, newCount, activeUserId, newLiked);
+
     try {
       await toggleCommunityThreadLike(threadId, activeUserId);
     } catch {
@@ -241,6 +314,10 @@ export const CommunityView: React.FC = () => {
       };
 
       setThreads(prev => [newThreadItem, ...prev]);
+
+      // Broadcast new thread to all other users immediately (< 50ms)
+      realtimeHub.broadcastCommunityThread('UPSERT', newThreadItem);
+
       toast.success('Discussion Thread Published!', {
         description: 'Your post is now live across the CapstoneFlow community.'
       });
@@ -288,6 +365,10 @@ export const CommunityView: React.FC = () => {
       setThreadReplies(prev => [...prev, newReplyItem]);
       setThreads(prev => prev.map(t => t.id === activeThreadDetail.id ? { ...t, repliesCount: t.repliesCount + 1 } : t));
       setActiveThreadDetail(prev => prev ? { ...prev, repliesCount: prev.repliesCount + 1 } : null);
+
+      // Broadcast comment to other peers immediately
+      realtimeHub.broadcastCommunityReply('UPSERT', newReplyItem);
+
       setNewReplyContent('');
       toast.success('Comment posted!');
     } catch {
@@ -326,7 +407,7 @@ export const CommunityView: React.FC = () => {
         borderBottom: '1px solid var(--border-subtle)', 
         background: 'var(--bg-card)', 
         backdropFilter: 'blur(16px)',
-        padding: '24px 24px 20px 24px' 
+        padding: '32px 24px 22px 24px' 
       }}>
         <div style={{ 
           maxWidth: '1080px', 
@@ -339,9 +420,9 @@ export const CommunityView: React.FC = () => {
           gap: '16px' 
         }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <span style={{ 
-                padding: '2px 8px', 
+                padding: '3px 9px', 
                 borderRadius: 'var(--radius-full)', 
                 fontSize: '0.68rem', 
                 fontWeight: 700, 
@@ -358,10 +439,10 @@ export const CommunityView: React.FC = () => {
               </span>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>• Real-time discussions & advice</span>
             </div>
-            <h1 style={{ fontSize: '1.65rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)', lineHeight: 1.25 }}>
               Capstone Community Hub
             </h1>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0', maxWidth: '580px' }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '6px 0 0 0', maxWidth: '580px', lineHeight: 1.45 }}>
               Exchange defense tactics, manuscript benchmarks, and tech stack solutions with peer researchers and advisers.
             </p>
           </div>
