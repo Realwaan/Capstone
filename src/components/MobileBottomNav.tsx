@@ -45,6 +45,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   };
 
   const moreItems = [
+    { id: 'community' as ViewType, label: 'Community Feed', icon: MessageSquareCheck, desc: 'Live discussions, advice & questions' },
+    { id: 'predictions' as ViewType, label: 'Defense Predictions', icon: Milestone, desc: 'Milestone forecasts & leaderboard' },
     { id: 'revisions' as ViewType, label: 'Adviser Revisions', icon: MessageSquareCheck, badge: pendingRevisionsCount > 0 ? pendingRevisionsCount : undefined, desc: 'Track comments and revisions' },
     { id: 'team' as ViewType, label: 'Team & Standups', icon: Users, desc: 'Member roster & daily standup logs' },
     { id: 'reports' as ViewType, label: 'Progress Reports', icon: FileText, desc: 'Defense readiness, PDF export & audit logs' },

@@ -65,6 +65,7 @@ interface ProjectsPortalViewProps {
   onOpenCreateProject: () => void;
   onSelectProject: (projectId: string) => void;
   onOpenCommandPalette?: () => void;
+  onNavigateToView?: (view: ViewType) => void;
 }
 
 type StatusFilter = 'all' | 'active' | 'paused';
@@ -74,7 +75,8 @@ type SortOption = 'name' | 'recent' | 'progress' | 'defense';
 export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
   onOpenCreateProject,
   onSelectProject,
-  onOpenCommandPalette
+  onOpenCommandPalette,
+  onNavigateToView
 }) => {
   const { 
     project,
@@ -416,6 +418,48 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onNavigateToView && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onNavigateToView('community')}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    height: '32px',
+                    padding: '0 11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600
+                  }}
+                  title="Open Capstone Community Feed"
+                >
+                  <MessageSquare size={13} style={{ color: 'var(--primary)' }} />
+                  <span>Community</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigateToView('predictions')}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    height: '32px',
+                    padding: '0 11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600
+                  }}
+                  title="Open Defense Predictions & Forecasts"
+                >
+                  <Sparkles size={13} style={{ color: '#f59e0b' }} />
+                  <span>Predictions</span>
+                </button>
+              </>
+            )}
+
             <button
               type="button"
               onClick={() => { setJoinInitialCode(''); setIsJoinModalOpen(true); }}

@@ -20,6 +20,8 @@ import { TeamView } from './components/TeamView';
 import { ReportsView } from './components/ReportsView';
 import { SettingsView } from './components/SettingsView';
 import { ProjectsPortalView } from './components/ProjectsPortalView';
+import { CommunityView } from './components/CommunityView';
+import { PredictionsView } from './components/PredictionsView';
 
 // Modals
 import { TaskModal } from './components/TaskModal';
@@ -34,6 +36,8 @@ import { CommandPalette } from './components/CommandPalette';
 const VALID_VIEWS: ViewType[] = [
   'projects',
   'dashboard', 
+  'community',
+  'predictions',
   'kanban', 
   'github',
   'timeline', 
@@ -221,6 +225,7 @@ const MainLayout: React.FC = () => {
           onOpenCreateProject={() => setIsCreateProjectOpen(true)}
           onSelectProject={() => handleSelectView('dashboard')}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onNavigateToView={handleSelectView}
         />
       ) : (
         <>
@@ -255,6 +260,10 @@ const MainLayout: React.FC = () => {
                   onEditTask={handleEditTask}
                 />
               )}
+
+              {activeView === 'community' && <CommunityView />}
+
+              {activeView === 'predictions' && <PredictionsView />}
 
               {activeView === 'kanban' && (
                 <KanbanView 

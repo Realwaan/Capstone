@@ -10,7 +10,14 @@ import {
   StandupEntry, 
   RevisionItem, 
   ActivityLog,
-  ManuscriptChapter 
+  ManuscriptChapter,
+  UserProfile,
+  CommunityThread,
+  CommunityReply,
+  Prediction,
+  PredictionOption,
+  PredictionVote,
+  PredictionLeaderboardEntry
 } from '../types';
 
 export interface SupabaseHydrationResult {
@@ -1225,5 +1232,514 @@ export const deleteProjectFromSupabase = async (projectId: string) => {
     console.warn('Supabase project delete failed:', e);
   }
 };
+
+// ============================================================================
+// 1. User Profiles & Supabase Auth Sync (cituintramurals-2026 pattern)
+// ============================================================================
+
+export const fetchProfileById = async (userId: string): Promise<UserProfile | null> => {
+  if (!isSupabaseConfigured() || !supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      email: data.email,
+      username: data.username,
+      nickname: data.nickname || data.username,
+      avatarUrl: data.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nickname || data.username)}&background=10b981&color=fff&bold=true`,
+      role: data.role || 'student',
+      bio: data.bio || '',
+      organization: data.organization || '',
+      createdAt: data.created_at
+    };
+  } catch (e) {
+    console.warn('[supabaseSync] fetchProfileById error:', e);
+    return null;
+  }
+};
+
+export const fetchProfileByUsername = async (username: string): Promise<UserProfile | null> => {
+  if (!isSupabaseConfigured() || !supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .ilike('username', username.trim())
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      email: data.email,
+      username: data.username,
+      nickname: data.nickname || data.username,
+      avatarUrl: data.avatar_url,
+      role: data.role || 'student',
+      bio: data.bio || '',
+      organization: data.organization || '',
+      createdAt: data.created_at
+    };
+  } catch (e) {
+    console.warn('[supabaseSync] fetchProfileByUsername error:', e);
+    return null;
+  }
+};
+
+export const upsertUserProfile = async (profile: UserProfile): Promise<boolean> => {
+  if (!isSupabaseConfigured() || !supabase) return false;
+  try {
+    const { error } = await supabase.from('profiles').upsert({
+      id: profile.id,
+      email: profile.email,
+      username: profile.username,
+      nickname: profile.nickname || profile.username,
+      avatar_url: profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.nickname || profile.username)}&background=10b981&color=fff&bold=true`,
+      role: profile.role || 'student',
+      bio: profile.bio || '',
+      organization: profile.organization || '',
+      updated_at: new Date().toISOString()
+    });
+    return !error;
+  } catch (e) {
+    console.warn('[supabaseSync] upsertUserProfile error:', e);
+    return false;
+  }
+};
+
+// ============================================================================
+// 2. Community Discussion Threads & Comments (cituintramurals-2026 pattern)
+// ============================================================================
+
+export const fetchCommunityThreads = async (currentUserId?: string): Promise<CommunityThread[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  try {
+    const { data: threadsData, error: threadsError } = await supabase
+      .from('community_threads')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (threadsError || !threadsData) return [];
+
+    // Fetch author profiles
+    const authorIds = Array.from(new Set(threadsData.map(t => t.author_id).filter(Boolean)));
+    const { data: profilesData } = authorIds.length > 0
+      ? await supabase.from('profiles').select('*').in('id', authorIds)
+      : { data: [] };
+
+    const profilesMap = new Map<string, any>((profilesData || []).map(p => [p.id, p]));
+
+    // Fetch user likes if logged in
+    let likedThreadIds = new Set<string>();
+    if (currentUserId) {
+      const { data: likesData } = await supabase
+        .from('community_likes')
+        .select('thread_id')
+        .eq('user_id', currentUserId);
+      if (likesData) {
+        likedThreadIds = new Set(likesData.map(l => l.thread_id));
+      }
+    }
+
+    return threadsData.map((t: any) => {
+      const author = profilesMap.get(t.author_id);
+      return {
+        id: t.id,
+        title: t.title,
+        content: t.content,
+        authorId: t.author_id,
+        authorName: author?.nickname || author?.username || 'Team Member',
+        authorUsername: author?.username,
+        authorAvatar: author?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.nickname || 'User')}&background=10b981&color=fff&bold=true`,
+        authorRole: author?.role || 'student',
+        tags: Array.isArray(t.tags) ? t.tags : (t.tags ? [t.tags] : []),
+        projectId: t.project_id,
+        isPinned: t.is_pinned || false,
+        likesCount: t.likes_count || 0,
+        repliesCount: t.replies_count || 0,
+        hasLiked: likedThreadIds.has(t.id),
+        createdAt: t.created_at,
+        updatedAt: t.updated_at
+      };
+    });
+  } catch (e) {
+    console.warn('[supabaseSync] fetchCommunityThreads error:', e);
+    return [];
+  }
+};
+
+export const createCommunityThread = async (
+  thread: Omit<CommunityThread, 'id' | 'likesCount' | 'repliesCount' | 'createdAt'>
+): Promise<CommunityThread | null> => {
+  if (!isSupabaseConfigured() || !supabase) return null;
+  try {
+    const threadId = `th_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newThreadRow = {
+      id: threadId,
+      title: thread.title,
+      content: thread.content,
+      author_id: thread.authorId,
+      tags: thread.tags || [],
+      project_id: thread.projectId || null,
+      is_pinned: thread.isPinned || false,
+      likes_count: 0,
+      replies_count: 0,
+      created_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('community_threads').insert(newThreadRow);
+    if (error) {
+      console.warn('[supabaseSync] createCommunityThread error:', error.message);
+      return null;
+    }
+
+    return {
+      ...thread,
+      id: threadId,
+      likesCount: 0,
+      repliesCount: 0,
+      hasLiked: false,
+      createdAt: newThreadRow.created_at
+    };
+  } catch (e) {
+    console.warn('[supabaseSync] createCommunityThread failed:', e);
+    return null;
+  }
+};
+
+export const toggleCommunityThreadLike = async (
+  threadId: string,
+  userId: string
+): Promise<{ hasLiked: boolean; newLikesCount: number }> => {
+  if (!isSupabaseConfigured() || !supabase) return { hasLiked: false, newLikesCount: 0 };
+  try {
+    // Check if like exists
+    const { data: existing } = await supabase
+      .from('community_likes')
+      .select('id')
+      .eq('thread_id', threadId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      // Remove like
+      await supabase.from('community_likes').delete().eq('id', existing.id);
+      const { data: thread } = await supabase
+        .from('community_threads')
+        .select('likes_count')
+        .eq('id', threadId)
+        .single();
+      const nextCount = Math.max(0, (thread?.likes_count || 1) - 1);
+      await supabase.from('community_threads').update({ likes_count: nextCount }).eq('id', threadId);
+      return { hasLiked: false, newLikesCount: nextCount };
+    } else {
+      // Add like
+      await supabase.from('community_likes').insert({
+        id: `like_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        thread_id: threadId,
+        user_id: userId,
+        created_at: new Date().toISOString()
+      });
+      const { data: thread } = await supabase
+        .from('community_threads')
+        .select('likes_count')
+        .eq('id', threadId)
+        .single();
+      const nextCount = (thread?.likes_count || 0) + 1;
+      await supabase.from('community_threads').update({ likes_count: nextCount }).eq('id', threadId);
+      return { hasLiked: true, newLikesCount: nextCount };
+    }
+  } catch (e) {
+    console.warn('[supabaseSync] toggleCommunityThreadLike error:', e);
+    return { hasLiked: false, newLikesCount: 0 };
+  }
+};
+
+export const fetchThreadReplies = async (threadId: string, currentUserId?: string): Promise<CommunityReply[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  try {
+    const { data: repliesData, error } = await supabase
+      .from('community_replies')
+      .select('*')
+      .eq('thread_id', threadId)
+      .order('created_at', { ascending: true });
+
+    if (error || !repliesData) return [];
+
+    const authorIds = Array.from(new Set(repliesData.map(r => r.author_id).filter(Boolean)));
+    const { data: profilesData } = authorIds.length > 0
+      ? await supabase.from('profiles').select('*').in('id', authorIds)
+      : { data: [] };
+
+    const profilesMap = new Map<string, any>((profilesData || []).map(p => [p.id, p]));
+
+    let likedReplyIds = new Set<string>();
+    if (currentUserId) {
+      const { data: replyLikes } = await supabase
+        .from('community_reply_likes')
+        .select('reply_id')
+        .eq('user_id', currentUserId);
+      if (replyLikes) {
+        likedReplyIds = new Set(replyLikes.map(l => l.reply_id));
+      }
+    }
+
+    return repliesData.map((r: any) => {
+      const author = profilesMap.get(r.author_id);
+      return {
+        id: r.id,
+        threadId: r.thread_id,
+        authorId: r.author_id,
+        authorName: author?.nickname || author?.username || 'Team Member',
+        authorUsername: author?.username,
+        authorAvatar: author?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.nickname || 'User')}&background=10b981&color=fff&bold=true`,
+        authorRole: author?.role || 'student',
+        parentId: r.parent_id,
+        content: r.content,
+        likesCount: r.likes_count || 0,
+        hasLiked: likedReplyIds.has(r.id),
+        createdAt: r.created_at
+      };
+    });
+  } catch (e) {
+    console.warn('[supabaseSync] fetchThreadReplies error:', e);
+    return [];
+  }
+};
+
+export const createThreadReply = async (
+  reply: Omit<CommunityReply, 'id' | 'likesCount' | 'createdAt'>
+): Promise<CommunityReply | null> => {
+  if (!isSupabaseConfigured() || !supabase) return null;
+  try {
+    const replyId = `rep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newReplyRow = {
+      id: replyId,
+      thread_id: reply.threadId,
+      author_id: reply.authorId,
+      parent_id: reply.parentId || null,
+      content: reply.content,
+      likes_count: 0,
+      created_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('community_replies').insert(newReplyRow);
+    if (error) {
+      console.warn('[supabaseSync] createThreadReply error:', error.message);
+      return null;
+    }
+
+    // Increment replies_count on thread
+    const { data: thread } = await supabase
+      .from('community_threads')
+      .select('replies_count')
+      .eq('id', reply.threadId)
+      .single();
+    if (thread) {
+      await supabase
+        .from('community_threads')
+        .update({ replies_count: (thread.replies_count || 0) + 1 })
+        .eq('id', reply.threadId);
+    }
+
+    return {
+      ...reply,
+      id: replyId,
+      likesCount: 0,
+      hasLiked: false,
+      createdAt: newReplyRow.created_at
+    };
+  } catch (e) {
+    console.warn('[supabaseSync] createThreadReply failed:', e);
+    return null;
+  }
+};
+
+// ============================================================================
+// 3. Capstone Defense & Milestone Predictions Hub (cituintramurals-2026 pattern)
+// ============================================================================
+
+export const fetchPredictions = async (currentUserId?: string): Promise<Prediction[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  try {
+    const { data: predictionsData, error } = await supabase
+      .from('predictions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !predictionsData) return [];
+
+    // Fetch user votes if logged in
+    let userVotesMap = new Map<string, string>();
+    if (currentUserId) {
+      const { data: votesData } = await supabase
+        .from('prediction_votes')
+        .select('prediction_id, selected_option_id')
+        .eq('user_id', currentUserId);
+      if (votesData) {
+        userVotesMap = new Map(votesData.map(v => [v.prediction_id, v.selected_option_id]));
+      }
+    }
+
+    // Fetch total votes per prediction
+    const { data: allVotes } = await supabase.from('prediction_votes').select('prediction_id, selected_option_id');
+
+    const votesByPredAndOption = new Map<string, number>();
+    const totalVotesByPred = new Map<string, number>();
+
+    (allVotes || []).forEach(v => {
+      totalVotesByPred.set(v.prediction_id, (totalVotesByPred.get(v.prediction_id) || 0) + 1);
+      const key = `${v.prediction_id}_${v.selected_option_id}`;
+      votesByPredAndOption.set(key, (votesByPredAndOption.get(key) || 0) + 1);
+    });
+
+    return predictionsData.map((p: any) => {
+      const rawOptions = parseJsonArray<any>(p.options);
+      const options: PredictionOption[] = rawOptions.map((opt: any) => ({
+        id: opt.id || String(opt),
+        label: opt.label || String(opt),
+        votesCount: votesByPredAndOption.get(`${p.id}_${opt.id || opt}`) || opt.votesCount || 0,
+        color: opt.color || '#10b981'
+      }));
+
+      return {
+        id: p.id,
+        title: p.title,
+        description: p.description || '',
+        category: p.category || 'milestone',
+        projectId: p.project_id,
+        authorId: p.author_id,
+        options,
+        totalVotes: totalVotesByPred.get(p.id) || 0,
+        userVotedOptionId: userVotesMap.get(p.id),
+        status: p.status || 'active',
+        correctOptionId: p.correct_option_id,
+        deadline: p.deadline || new Date(Date.now() + 7 * 86400000).toISOString(),
+        createdAt: p.created_at
+      };
+    });
+  } catch (e) {
+    console.warn('[supabaseSync] fetchPredictions error:', e);
+    return [];
+  }
+};
+
+export const createPrediction = async (
+  pred: Omit<Prediction, 'id' | 'totalVotes' | 'createdAt'>
+): Promise<Prediction | null> => {
+  if (!isSupabaseConfigured() || !supabase) return null;
+  try {
+    const predId = `pred_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newPredRow = {
+      id: predId,
+      title: pred.title,
+      description: pred.description || '',
+      category: pred.category || 'milestone',
+      project_id: pred.projectId || null,
+      author_id: pred.authorId || null,
+      options: pred.options || [],
+      status: pred.status || 'active',
+      correct_option_id: pred.correctOptionId || null,
+      deadline: pred.deadline,
+      created_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('predictions').insert(newPredRow);
+    if (error) {
+      console.warn('[supabaseSync] createPrediction error:', error.message);
+      return null;
+    }
+
+    return {
+      ...pred,
+      id: predId,
+      totalVotes: 0,
+      createdAt: newPredRow.created_at
+    };
+  } catch (e) {
+    console.warn('[supabaseSync] createPrediction failed:', e);
+    return null;
+  }
+};
+
+export const castPredictionVote = async (
+  predictionId: string,
+  userId: string,
+  selectedOptionId: string
+): Promise<boolean> => {
+  if (!isSupabaseConfigured() || !supabase) return false;
+  try {
+    const voteId = `vote_${predictionId}_${userId}`;
+    const { error } = await supabase.from('prediction_votes').upsert({
+      id: voteId,
+      prediction_id: predictionId,
+      user_id: userId,
+      selected_option_id: selectedOptionId,
+      created_at: new Date().toISOString()
+    });
+
+    return !error;
+  } catch (e) {
+    console.warn('[supabaseSync] castPredictionVote error:', e);
+    return false;
+  }
+};
+
+export const fetchPredictionLeaderboard = async (): Promise<PredictionLeaderboardEntry[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  try {
+    const { data: profiles } = await supabase.from('profiles').select('*');
+    const { data: votes } = await supabase.from('prediction_votes').select('*');
+    const { data: predictions } = await supabase.from('predictions').select('*');
+
+    if (!profiles || profiles.length === 0) return [];
+
+    const predMap = new Map<string, any>((predictions || []).map(p => [p.id, p]));
+
+    const userStats = new Map<string, { total: number; correct: number }>();
+    (votes || []).forEach(v => {
+      const current = userStats.get(v.user_id) || { total: 0, correct: 0 };
+      current.total += 1;
+      const pred = predMap.get(v.prediction_id);
+      if (pred && pred.status === 'resolved' && pred.correct_option_id === v.selected_option_id) {
+        current.correct += 1;
+      }
+      userStats.set(v.user_id, current);
+    });
+
+    return profiles.map(p => {
+      const stats = userStats.get(p.id) || { total: 0, correct: 0 };
+      const accuracy = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+      const points = stats.correct * 100 + stats.total * 10;
+      
+      let badge = 'Novice Predictor';
+      if (stats.correct >= 10) badge = 'Defense Master';
+      else if (stats.correct >= 5) badge = 'Sprint Prophet';
+      else if (stats.total >= 3) badge = 'Active Analyst';
+
+      return {
+        userId: p.id,
+        username: p.username,
+        nickname: p.nickname || p.username,
+        avatarUrl: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.nickname || p.username)}&background=10b981&color=fff&bold=true`,
+        role: p.role,
+        points,
+        totalPredictions: stats.total,
+        correctPredictions: stats.correct,
+        accuracyPercentage: accuracy,
+        badge
+      };
+    }).sort((a, b) => b.points - a.points);
+  } catch (e) {
+    console.warn('[supabaseSync] fetchPredictionLeaderboard error:', e);
+    return [];
+  }
+};
+
 
 

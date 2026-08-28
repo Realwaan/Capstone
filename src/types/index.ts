@@ -317,3 +317,101 @@ export interface GitHubPullRequest {
   reviewStatus?: 'approved' | 'changes_requested' | 'pending';
   linkedTaskId?: string;
 }
+
+// User Profile (Supabase Auth & Community Identity)
+export interface UserProfile {
+  id: string;
+  email: string;
+  username: string;
+  nickname?: string;
+  avatarUrl?: string;
+  role: 'student' | 'lead' | 'adviser' | 'panelist' | 'admin';
+  bio?: string;
+  organization?: string;
+  createdAt?: string;
+}
+
+// Community Threads & Discussions
+export interface CommunityThread {
+  id: string;
+  title: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorUsername?: string;
+  authorAvatar?: string;
+  authorRole?: string;
+  tags: string[];
+  projectId?: string;
+  projectTitle?: string;
+  isPinned?: boolean;
+  likesCount: number;
+  repliesCount: number;
+  hasLiked?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// Community Replies / Comments
+export interface CommunityReply {
+  id: string;
+  threadId: string;
+  authorId: string;
+  authorName: string;
+  authorUsername?: string;
+  authorAvatar?: string;
+  authorRole?: string;
+  parentId?: string;
+  content: string;
+  likesCount: number;
+  hasLiked?: boolean;
+  createdAt: string;
+}
+
+// Capstone Milestone & Defense Predictions / Polls
+export interface PredictionOption {
+  id: string;
+  label: string;
+  votesCount: number;
+  color?: string;
+}
+
+export interface Prediction {
+  id: string;
+  title: string;
+  description?: string;
+  category: 'milestone' | 'defense' | 'awards' | 'sprint' | 'general';
+  projectId?: string;
+  projectTitle?: string;
+  authorId?: string;
+  authorName?: string;
+  options: PredictionOption[];
+  totalVotes: number;
+  userVotedOptionId?: string;
+  status: 'active' | 'closed' | 'resolved';
+  correctOptionId?: string;
+  deadline: string;
+  createdAt: string;
+}
+
+export interface PredictionVote {
+  id: string;
+  predictionId: string;
+  userId: string;
+  selectedOptionId: string;
+  createdAt: string;
+}
+
+export interface PredictionLeaderboardEntry {
+  userId: string;
+  username: string;
+  nickname?: string;
+  avatarUrl?: string;
+  role?: string;
+  points: number;
+  totalPredictions: number;
+  correctPredictions: number;
+  accuracyPercentage: number;
+  badge: string;
+}
+

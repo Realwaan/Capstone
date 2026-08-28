@@ -11,13 +11,17 @@ import {
   FileText, 
   Settings,
   ChevronRight,
-  X
+  X,
+  MessageSquare,
+  Trophy
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 
 export type ViewType = 
   | 'projects'
   | 'dashboard' 
+  | 'community'
+  | 'predictions'
   | 'kanban' 
   | 'github'
   | 'timeline' 
@@ -60,6 +64,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: 'dashboard' as ViewType, label: 'Overview', icon: LayoutDashboard },
+    { id: 'community' as ViewType, label: 'Community Feed', icon: MessageSquare, badge: 'Live', badgeColor: 'badge-primary' },
+    { id: 'predictions' as ViewType, label: 'Defense Predictions', icon: Trophy, badge: 'Active', badgeColor: 'badge-warning' },
     { id: 'kanban' as ViewType, label: 'Task Matrix & Board', icon: KanbanSquare, badge: activeTasksCount > 0 ? activeTasksCount : undefined, badgeColor: 'badge-primary' },
     { id: 'github' as ViewType, label: 'GitHub Repository Hub', icon: GitHubIcon, badge: isGitHubConnected ? `@${githubUser?.login}` : 'Connect', badgeColor: isGitHubConnected ? 'badge-success' : 'badge-neutral' },
     { id: 'timeline' as ViewType, label: 'Milestones & Gantt', icon: Milestone, badge: activePhaseBadge, badgeColor: 'badge-neutral' },

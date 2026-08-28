@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 import { CapStoneFlowLogo } from './CapStoneFlowLogo';
+import { AuthModal } from './AuthModal';
+import { Mail } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { 
@@ -33,6 +35,8 @@ export const LoginPage: React.FC = () => {
   const [isExchanging, setIsExchanging] = useState(false);
   const [exchangeElapsed, setExchangeElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
 
   const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
   const isLocalDev = typeof window !== 'undefined' && (
@@ -530,7 +534,7 @@ export const LoginPage: React.FC = () => {
                     onClick={handleOAuthRedirect}
                     disabled={loading}
                     className="btn-github-oauth btn-emil-interactive"
-                    style={{ padding: '14px 20px', fontSize: '0.94rem', width: '100%' }}
+                    style={{ padding: '14px 20px', fontSize: '0.94rem', width: '100%', marginBottom: '10px' }}
                   >
                     <GitHubIcon size={20} />
                     <span>{loading ? 'Connecting to GitHub...' : 'Continue with GitHub'}</span>
@@ -539,6 +543,28 @@ export const LoginPage: React.FC = () => {
                     ) : (
                       <ArrowRight size={17} style={{ marginLeft: 'auto' }} />
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setAuthModalMode('signin'); setIsAuthModalOpen(true); }}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      fontSize: '0.84rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--border-card)',
+                      background: 'var(--bg-elevated)'
+                    }}
+                  >
+                    <Mail size={15} style={{ color: 'var(--primary)' }} />
+                    <span>Sign in with Email or Create Account</span>
                   </button>
 
                   {/* Local Development Only Bypass — Hidden in Deployed Production */}
@@ -619,6 +645,16 @@ export const LoginPage: React.FC = () => {
           <span>You’ll be redirected to GitHub to authorize access.</span>
         </footer>
       </section>
+
+      {/* Direct Supabase Email/Password & Username Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        initialMode={authModalMode}
+        onAuthSuccess={(profile) => {
+          loginUser(profile.id);
+        }}
+      />
     </div>
   );
 };

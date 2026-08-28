@@ -56,7 +56,11 @@ export const createNewProjectInstance = (
 
   const inviteCode = `CF-${randomSlug.toUpperCase()}`;
 
-  const ownerId = creatorProfile?.id || (payload.ownerName ? `usr_${payload.ownerName.toLowerCase().replace(/\s+/g, '_')}` : 'usr_owner_main');
+  const ownerId = (creatorProfile?.id && creatorProfile.id !== 'usr_owner_main' && creatorProfile.id !== 'm_lead')
+    ? creatorProfile.id
+    : (creatorProfile?.githubUsername
+        ? `m_${creatorProfile.githubUsername.toLowerCase()}`
+        : (payload.ownerName ? `usr_${payload.ownerName.toLowerCase().replace(/\s+/g, '_')}` : `usr_${projectId}_owner`));
   const ownerName = creatorProfile?.name || payload.ownerName || 'Project Lead';
   const ownerEmail = creatorProfile?.email || '';
   const ownerAvatar = creatorProfile?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&background=10b981&color=fff&bold=true`;
