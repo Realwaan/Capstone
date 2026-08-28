@@ -7,12 +7,14 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import {
   Task,
+  TeamMember,
   StandupEntry,
   RevisionItem,
   OnlinePresenceUser
 } from '../types';
 import {
   mapSupabaseTaskRow,
+  mapSupabaseMemberRow,
   mapSupabaseStandupRow,
   mapSupabaseRevisionRow
 } from './supabaseSync';
@@ -38,6 +40,7 @@ export interface RealtimeSubscriptionOptions {
   currentUser?: PresenceUserInfo | null;
   onTaskChange?: (eventType: 'UPSERT' | 'DELETE', task: Task | { id: string }) => void;
   onSubtaskChange?: (eventType: 'UPSERT' | 'DELETE', subtask: SubtaskCDCRecord | { id: string; taskId?: string }) => void;
+  onMemberChange?: (eventType: 'UPSERT' | 'DELETE', member: TeamMember | { id: string }) => void;
   onStandupChange?: (eventType: 'UPSERT' | 'DELETE', standup: StandupEntry | { id: string }) => void;
   onRevisionChange?: (eventType: 'UPSERT' | 'DELETE', revision: RevisionItem | { id: string }) => void;
   onPresenceChange?: (users: OnlinePresenceUser[]) => void;
@@ -80,31 +83,31 @@ export class RealtimeHub {
       _timestamp: Date.now()
     };
 
-    let sent = false;
-    if (this.activeChannel) {
+    const sendWithTimeout = async (chan: any): Promise<boolean> => {
       try {
-        const res = await this.activeChannel.send({
+        const sendPromise = chan.send({
           type: 'broadcast',
           event,
           payload: enrichedPayload
         });
-        if (res === 'ok') sent = true;
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 1500));
+        const res = await Promise.race([sendPromise, timeoutPromise]);
+        return res === 'ok';
       } catch (err) {
-        console.warn('[RealtimeHub] Active channel broadcast send failed:', err);
+        console.warn('[RealtimeHub] Broadcast send failed:', err);
+        return false;
       }
+    };
+
+    let sent = false;
+    if (this.activeChannel) {
+      const ok = await sendWithTimeout(this.activeChannel);
+      if (ok) sent = true;
     }
 
     if (this.globalChannel) {
-      try {
-        const res = await this.globalChannel.send({
-          type: 'broadcast',
-          event,
-          payload: enrichedPayload
-        });
-        if (res === 'ok') sent = true;
-      } catch (err) {
-        console.warn('[RealtimeHub] Global channel broadcast send failed:', err);
-      }
+      const ok = await sendWithTimeout(this.globalChannel);
+      if (ok) sent = true;
     }
 
     return sent;
@@ -198,6 +201,20 @@ export class RealtimeHub {
           }
         });
 
+        // Global Member Broadcast Handler
+        globalChan.on('broadcast', { event: 'member_change' }, (msg: any) => {
+          const { eventType, member, projectId, _senderPeerId } = msg.payload || {};
+          if (_senderPeerId === this.peerId) return;
+          const currentProj = this.activeOptions?.projectId;
+          if (!currentProj || !projectId || projectId === currentProj) {
+            if (eventType === 'DELETE') {
+              if (member?.id && this.activeOptions?.onMemberChange) this.activeOptions.onMemberChange('DELETE', { id: member.id });
+            } else if (member && this.activeOptions?.onMemberChange) {
+              this.activeOptions.onMemberChange('UPSERT', member);
+            }
+          }
+        });
+
         // Global Structural Change Handler
         globalChan.on('broadcast', { event: 'structural_change' }, (msg: any) => {
           const { projectId, _senderPeerId } = msg.payload || {};
@@ -286,6 +303,16 @@ export class RealtimeHub {
         }
       });
 
+      channel.on('broadcast', { event: 'member_change' }, (msg: any) => {
+        const { eventType, member, _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        if (eventType === 'DELETE') {
+          if (member?.id && this.activeOptions?.onMemberChange) this.activeOptions.onMemberChange('DELETE', { id: member.id });
+        } else if (member && this.activeOptions?.onMemberChange) {
+          this.activeOptions.onMemberChange('UPSERT', member);
+        }
+      });
+
       channel.on('broadcast', { event: 'structural_change' }, (msg: any) => {
         const { _senderPeerId } = msg.payload || {};
         if (_senderPeerId === this.peerId) return;
@@ -322,6 +349,31 @@ export class RealtimeHub {
               this.activeOptions.onTaskChange('UPSERT', mappedTask);
             } catch (err) {
               console.warn('[RealtimeHub] Failed to map task CDC row; triggering structural refresh', err);
+              this.activeOptions?.onStructuralChange?.();
+            }
+          }
+        }
+      );
+
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_members' },
+        (payload: { eventType: string; new: Record<string, any>; old: Record<string, any> }) => {
+          const currentProj = this.activeOptions?.projectId;
+          if (currentProj) {
+            const rowProjId = payload.new?.project_id || payload.old?.project_id;
+            if (rowProjId && rowProjId !== currentProj) return;
+          }
+          if (payload.eventType === 'DELETE') {
+            if (payload.old?.id && this.activeOptions?.onMemberChange) {
+              this.activeOptions.onMemberChange('DELETE', { id: payload.old.id });
+            }
+          } else if (payload.new && this.activeOptions?.onMemberChange) {
+            try {
+              const mappedMember = mapSupabaseMemberRow(payload.new);
+              this.activeOptions.onMemberChange('UPSERT', mappedMember);
+            } catch (err) {
+              console.warn('[RealtimeHub] Failed to map team_member CDC row:', err);
               this.activeOptions?.onStructuralChange?.();
             }
           }

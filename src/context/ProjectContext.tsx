@@ -803,6 +803,41 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           });
         }
       },
+      onMemberChange: (eventType, memberOrId) => {
+        if (!isMounted) return;
+        const currentProjId = activeProjectIdRef.current || project.id;
+        if (eventType === 'DELETE') {
+          setMembers(prev => {
+            const updated = prev.filter(m => m.id !== memberOrId.id);
+            localStorage.setItem(`capstoneflow_proj_${currentProjId}_members`, JSON.stringify(updated));
+            return updated;
+          });
+        } else {
+          const updatedMember = memberOrId as TeamMember;
+          setMembers(prev => {
+            const index = prev.findIndex(m => 
+              m.id === updatedMember.id || 
+              (updatedMember.githubUsername && m.githubUsername?.toLowerCase() === updatedMember.githubUsername.toLowerCase())
+            );
+            let updatedList: TeamMember[];
+            if (index >= 0) {
+              updatedList = [...prev];
+              updatedList[index] = {
+                ...prev[index],
+                ...updatedMember
+              };
+            } else {
+              const isRealMember = Boolean(updatedMember.githubUsername || updatedMember.permissionLevel === 'owner');
+              const cleanPrev = isRealMember 
+                ? prev.filter(m => m.id !== 'usr_owner_main')
+                : prev;
+              updatedList = [...cleanPrev, updatedMember];
+            }
+            localStorage.setItem(`capstoneflow_proj_${currentProjId}_members`, JSON.stringify(updatedList));
+            return updatedList;
+          });
+        }
+      },
       onPresenceChange: (users) => {
         if (isMounted) setOnlineUsers(users);
       },
@@ -1209,6 +1244,37 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [activeProjectId]);
 
+  // Realtime Broadcast Mutation Emitters
+  const broadcastMemberMutation = (eventType: 'UPSERT' | 'DELETE', memberOrId: TeamMember | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('member_change', { eventType, member: memberOrId, projectId: currentProjId });
+  };
+
+  const broadcastTaskMutation = (eventType: 'UPSERT' | 'DELETE', taskOrId: Task | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('task_change', { eventType, task: taskOrId, projectId: currentProjId });
+  };
+
+  const broadcastSubtaskMutation = (eventType: 'UPSERT' | 'DELETE', subtask: any, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('subtask_change', { eventType, subtask, projectId: currentProjId });
+  };
+
+  const broadcastStandupMutation = (eventType: 'UPSERT' | 'DELETE', standup: StandupEntry | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('standup_change', { eventType, standup, projectId: currentProjId });
+  };
+
+  const broadcastRevisionMutation = (eventType: 'UPSERT' | 'DELETE', revision: RevisionItem | { id: string }, targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('revision_change', { eventType, revision, projectId: currentProjId });
+  };
+
+  const broadcastStructuralMutation = (targetProjectId?: string) => {
+    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
+    void realtimeHub.broadcast('structural_change', { projectId: currentProjId });
+  };
+
   const updateMemberPermission = (memberId: string, level: PermissionLevel) => {
     const currentProjId = activeProjectIdRef.current || project.id;
     let targetMember: TeamMember | undefined;
@@ -1225,8 +1291,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
     if (targetMember) {
       void syncMemberToSupabase(targetMember, currentProjId);
+      broadcastMemberMutation('UPSERT', targetMember, currentProjId);
     }
-    broadcastStructuralMutation();
+    broadcastStructuralMutation(currentProjId);
     logActivity('updated member permissions', `Member #${memberId} (${level})`);
   };
 
@@ -1246,8 +1313,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
     if (targetMember) {
       void syncMemberToSupabase(targetMember, currentProjId);
+      broadcastMemberMutation('UPSERT', targetMember, currentProjId);
     }
-    broadcastStructuralMutation();
+    broadcastStructuralMutation(currentProjId);
     logActivity('updated member role title', roleTitle);
   };
 
@@ -1606,7 +1674,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (addedMember) {
       void syncMemberToSupabase(addedMember, currentProjId);
-      broadcastStructuralMutation();
+      broadcastMemberMutation('UPSERT', addedMember, currentProjId);
+      broadcastStructuralMutation(currentProjId);
     }
 
     logActivity('added team member from GitHub', `@${cleanUsername}`);
@@ -1627,7 +1696,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return next;
     });
     deleteMemberFromSupabase(memberId);
-    broadcastStructuralMutation();
+    broadcastMemberMutation('DELETE', { id: memberId }, currentProjId);
+    broadcastStructuralMutation(currentProjId);
     logActivity('removed member from roster', memberId);
     toast.success('Member Removed', {
       description: `Member removed from roster.`
@@ -1807,32 +1877,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isAutoTracking, project.githubRepoUrl]);
-
-  // Task Handlers & Realtime Broadcast Emitters
-  const broadcastTaskMutation = (eventType: 'UPSERT' | 'DELETE', taskOrId: Task | { id: string }, targetProjectId?: string) => {
-    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
-    void realtimeHub.broadcast('task_change', { eventType, task: taskOrId, projectId: currentProjId });
-  };
-
-  const broadcastSubtaskMutation = (eventType: 'UPSERT' | 'DELETE', subtask: any, targetProjectId?: string) => {
-    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
-    void realtimeHub.broadcast('subtask_change', { eventType, subtask, projectId: currentProjId });
-  };
-
-  const broadcastStandupMutation = (eventType: 'UPSERT' | 'DELETE', standup: StandupEntry | { id: string }, targetProjectId?: string) => {
-    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
-    void realtimeHub.broadcast('standup_change', { eventType, standup, projectId: currentProjId });
-  };
-
-  const broadcastRevisionMutation = (eventType: 'UPSERT' | 'DELETE', revision: RevisionItem | { id: string }, targetProjectId?: string) => {
-    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
-    void realtimeHub.broadcast('revision_change', { eventType, revision, projectId: currentProjId });
-  };
-
-  const broadcastStructuralMutation = (targetProjectId?: string) => {
-    const currentProjId = targetProjectId || activeProjectIdRef.current || project.id;
-    void realtimeHub.broadcast('structural_change', { projectId: currentProjId });
-  };
 
   const syncTaskStateToDiscord = (task: Task, actor: string) => {
     if (!isDiscordTicketSyncEnabled() || !task.discordTicket?.channelId) return;
@@ -3216,6 +3260,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               loadedMembers[existingIdx] = updatedMember;
               setCurrentMemberId(matched.id);
               void syncMemberToSupabase(updatedMember, targetId);
+              broadcastMemberMutation('UPSERT', updatedMember, targetId);
             } else {
               const newMember: TeamMember = {
                 id: `m_${userLogin}`,
@@ -3231,6 +3276,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               loadedMembers = [...loadedMembers, newMember];
               setCurrentMemberId(newMember.id);
               void joinCloudProject(targetId, newMember);
+              broadcastMemberMutation('UPSERT', newMember, targetId);
             }
           }
 
@@ -3510,6 +3556,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         await joinCloudProject(cloudProj.id, visitorMember);
         void syncProjectToSupabase(updatedCloudProj);
+        broadcastMemberMutation('UPSERT', visitorMember, cloudProj.id);
         broadcastStructuralMutation(cloudProj.id);
 
         await switchProject(cloudProj.id, updatedCloudProj);
@@ -3595,6 +3642,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             chapters: initialChapters
           });
           await joinCloudProject(provisionedProject.id, visitorMember);
+          broadcastMemberMutation('UPSERT', visitorMember, provisionedProject.id);
           broadcastStructuralMutation(provisionedProject.id);
         } catch (e) {
           console.warn('[joinProjectByInvite] Auto-provision sync warning:', e);
