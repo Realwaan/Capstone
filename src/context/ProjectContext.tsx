@@ -1378,6 +1378,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('capstone_active_view', 'projects');
       window.location.hash = '#projects';
     } catch {}
+    if (isSupabaseConfigured() && target) {
+      void syncMemberToSupabase(target, activeProjectIdRef.current);
+    }
     logActivity('authenticated into workspace', target?.name || 'Member');
   };
 
