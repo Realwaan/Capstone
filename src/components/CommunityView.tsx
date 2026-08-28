@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, 
   Heart, 
-  Share2, 
   Plus, 
   Search, 
-  TrendingUp, 
   Clock, 
   Sparkles, 
   Tag, 
@@ -17,18 +15,17 @@ import {
   Layers,
   GraduationCap,
   Flame,
-  Filter,
-  CheckCircle,
   HelpCircle,
-  ExternalLink
+  CheckCircle,
+  CornerDownRight
 } from 'lucide-react';
-import { CommunityThread, CommunityReply, UserProfile } from '../types';
+import { CommunityThread, CommunityReply } from '../types';
 import { 
   fetchCommunityThreads, 
   createCommunityThread, 
   toggleCommunityThreadLike,
-  fetchThreadReplies,
-  createThreadReply
+  fetchThreadReplies, 
+  createThreadReply 
 } from '../lib/supabaseSync';
 import { useProject } from '../context/ProjectContext';
 import { toast } from 'sonner';
@@ -67,7 +64,6 @@ export const CommunityView: React.FC = () => {
   const [linkProject, setLinkProject] = useState(true);
   const [isSubmittingThread, setIsSubmittingThread] = useState(false);
 
-  // Active current user ID
   const activeUserId = currentMember?.id || `usr_guest_${Date.now()}`;
   const activeUserName = currentMember?.name || (githubUser?.name || 'Community Member');
   const activeUserAvatar = currentMember?.avatar || (githubUser?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(activeUserName)}&background=10b981&color=fff&bold=true`);
@@ -80,7 +76,6 @@ export const CommunityView: React.FC = () => {
       if (data && data.length > 0) {
         setThreads(data);
       } else {
-        // Mock sample threads for instant rich presentation if DB is fresh
         const sampleThreads: CommunityThread[] = [
           {
             id: 'th_sample_1',
@@ -147,64 +142,66 @@ export const CommunityView: React.FC = () => {
       if (replies && replies.length > 0) {
         setThreadReplies(replies);
       } else {
-        // Sample starter replies
-        setThreadReplies([
+        const sampleReplies: CommunityReply[] = [
           {
-            id: `rep_${thread.id}_1`,
+            id: 'rep_sample_1',
             threadId: thread.id,
-            authorId: 'usr_peer_1',
-            authorName: 'David Chen',
-            authorRole: 'Software Developer',
-            authorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-            content: 'Super helpful insight! We will be updating our slide deck with verifiable baseline benchmarks before Tuesday.',
-            likesCount: 4,
+            authorId: 'usr_sarah',
+            authorName: 'Engr. Sarah Mendoza',
+            authorRole: 'Faculty Adviser',
+            authorAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+            content: 'Great insight! Also make sure your system architecture diagram includes database connection pools.',
+            likesCount: 5,
             hasLiked: false,
             createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
+          },
+          {
+            id: 'rep_sample_2',
+            threadId: thread.id,
+            authorId: 'usr_marc',
+            authorName: 'Marc Andrei',
+            authorRole: 'Student Lead',
+            authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            content: 'Thanks for this! We will apply this rubric to our title defense presentation.',
+            likesCount: 2,
+            hasLiked: true,
+            createdAt: new Date(Date.now() - 3600000).toISOString()
           }
-        ]);
+        ];
+        setThreadReplies(sampleReplies);
       }
     } catch (e) {
-      console.warn('Failed to load replies:', e);
+      console.warn('Error fetching replies:', e);
     } finally {
       setIsLoadingReplies(false);
     }
   };
 
-  const handleToggleLike = async (threadId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    
-    // Optimistic UI update
-    setThreads(prev => prev.map(t => {
-      if (t.id === threadId) {
-        const nextLiked = !t.hasLiked;
-        return {
-          ...t,
-          hasLiked: nextLiked,
-          likesCount: nextLiked ? t.likesCount + 1 : Math.max(0, t.likesCount - 1)
-        };
-      }
-      return t;
-    }));
+  const handleToggleLike = async (threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const thread = threads.find(t => t.id === threadId);
+    if (!thread) return;
 
+    const newLiked = !thread.hasLiked;
+    const newCount = newLiked ? thread.likesCount + 1 : Math.max(0, thread.likesCount - 1);
+
+    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, hasLiked: newLiked, likesCount: newCount } : t));
     if (activeThreadDetail && activeThreadDetail.id === threadId) {
-      setActiveThreadDetail(prev => prev ? {
-        ...prev,
-        hasLiked: !prev.hasLiked,
-        likesCount: !prev.hasLiked ? prev.likesCount + 1 : Math.max(0, prev.likesCount - 1)
-      } : null);
+      setActiveThreadDetail(prev => prev ? { ...prev, hasLiked: newLiked, likesCount: newCount } : null);
     }
 
     try {
       await toggleCommunityThreadLike(threadId, activeUserId);
-    } catch (err) {
-      console.warn('Error toggling like:', err);
+    } catch {
+      // Revert if error
+      setThreads(prev => prev.map(t => t.id === threadId ? { ...t, hasLiked: !newLiked, likesCount: thread.likesCount } : t));
     }
   };
 
   const handleCreateThread = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) {
-      toast.error('Please enter a title and discussion content.');
+      toast.error('Please enter a thread title and content.');
       return;
     }
 
@@ -293,14 +290,13 @@ export const CommunityView: React.FC = () => {
       setActiveThreadDetail(prev => prev ? { ...prev, repliesCount: prev.repliesCount + 1 } : null);
       setNewReplyContent('');
       toast.success('Comment posted!');
-    } catch (err: any) {
+    } catch {
       toast.error('Failed to post reply');
     } finally {
       setIsSubmittingReply(false);
     }
   };
 
-  // Filter and sort logic
   const filteredThreads = threads.filter(t => {
     const matchesSearch = !searchQuery || 
       t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -323,121 +319,235 @@ export const CommunityView: React.FC = () => {
   const totalComments = threads.reduce((acc, t) => acc + t.repliesCount, 0);
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-16">
-      {/* Hero Header */}
-      <div className="border-b border-border bg-card/40 backdrop-blur-md px-4 sm:px-8 py-8 relative overflow-hidden">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+    <div style={{ minHeight: '100vh', background: 'var(--bg-app)', color: 'var(--text-primary)', paddingBottom: '90px' }}>
+      
+      {/* Hero Header Section */}
+      <div style={{ 
+        borderBottom: '1px solid var(--border-subtle)', 
+        background: 'var(--bg-card)', 
+        backdropFilter: 'blur(16px)',
+        padding: '24px 24px 20px 24px' 
+      }}>
+        <div style={{ 
+          maxWidth: '1080px', 
+          margin: '0 auto', 
+          display: 'flex', 
+          flexDirection: 'row', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px' 
+        }}>
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span style={{ 
+                padding: '2px 8px', 
+                borderRadius: 'var(--radius-full)', 
+                fontSize: '0.68rem', 
+                fontWeight: 700, 
+                textTransform: 'uppercase', 
+                background: 'var(--primary-light)', 
+                color: 'var(--primary)',
+                border: '1px solid rgba(48, 209, 88, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Sparkles size={11} />
                 Live Capstone Network
               </span>
-              <span className="text-xs text-muted-foreground">• Real-time discussions & advice</span>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>• Real-time discussions & advice</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+            <h1 style={{ fontSize: '1.65rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
               Capstone Community Hub
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0', maxWidth: '580px' }}>
               Exchange defense tactics, manuscript benchmarks, and tech stack solutions with peer researchers and advisers.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Quick stats */}
-            <div className="hidden sm:flex items-center gap-4 bg-secondary/50 border border-border/60 rounded-xl px-4 py-2 text-xs">
-              <div className="text-center">
-                <div className="font-bold text-foreground">{threads.length}</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Discussions</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Quick stats badge */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-card)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '6px 14px'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>{threads.length}</div>
+                <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700 }}>Discussions</div>
               </div>
-              <div className="w-[1px] h-6 bg-border" />
-              <div className="text-center">
-                <div className="font-bold text-foreground">{totalLikes}</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Likes</div>
+              <div style={{ width: '1px', height: '20px', background: 'var(--border-subtle)' }} />
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalLikes}</div>
+                <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700 }}>Likes</div>
               </div>
-              <div className="w-[1px] h-6 bg-border" />
-              <div className="text-center">
-                <div className="font-bold text-foreground">{totalComments}</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Replies</div>
+              <div style={{ width: '1px', height: '20px', background: 'var(--border-subtle)' }} />
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalComments}</div>
+                <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700 }}>Replies</div>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={() => setIsNewThreadOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary/20"
+              className="btn btn-primary"
+              style={{
+                height: '36px',
+                padding: '0 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                borderRadius: 'var(--radius-lg)'
+              }}
             >
-              <Plus className="w-4 h-4" />
+              <Plus size={15} />
               <span>Start Discussion</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6">
-        {/* Controls: Search, Topic Tabs, Sort */}
-        <div className="flex flex-col gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+      {/* Main Content Body */}
+      <div style={{ maxWidth: '1080px', margin: '0 auto', padding: '20px 20px 0 20px' }}>
+        
+        {/* Search, Filter Tabs & Sort Controls */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+            
             {/* Search Input */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div style={{ position: 'relative', flex: 1, minWidth: '240px', maxWidth: '420px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search discussions, topics, or authors..."
-                className="w-full pl-10 pr-4 py-2 bg-card border border-border/70 rounded-xl text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                style={{
+                  width: '100%',
+                  height: '34px',
+                  paddingLeft: '34px',
+                  paddingRight: '12px',
+                  fontSize: '0.8rem',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-card)',
+                  borderRadius: 'var(--radius-lg)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
               />
             </div>
 
-            {/* Sort Selector */}
-            <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-xl border border-border/60 text-xs">
+            {/* Sort Toggle */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'var(--bg-elevated)',
+              padding: '3px',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-card)'
+            }}>
               <button
+                type="button"
                 onClick={() => setSortBy('latest')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  sortBy === 'latest' ? 'bg-card text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  fontSize: '0.74rem',
+                  fontWeight: sortBy === 'latest' ? 700 : 500,
+                  borderRadius: 'var(--radius-md)',
+                  background: sortBy === 'latest' ? 'var(--bg-card)' : 'transparent',
+                  color: sortBy === 'latest' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  border: sortBy === 'latest' ? '1px solid var(--border-card)' : '1px solid transparent',
+                  cursor: 'pointer'
+                }}
               >
-                <Clock className="w-3.5 h-3.5" />
+                <Clock size={12} />
                 <span>Latest</span>
               </button>
+
               <button
+                type="button"
                 onClick={() => setSortBy('hot')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  sortBy === 'hot' ? 'bg-card text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  fontSize: '0.74rem',
+                  fontWeight: sortBy === 'hot' ? 700 : 500,
+                  borderRadius: 'var(--radius-md)',
+                  background: sortBy === 'hot' ? 'var(--bg-card)' : 'transparent',
+                  color: sortBy === 'hot' ? '#f59e0b' : 'var(--text-muted)',
+                  border: sortBy === 'hot' ? '1px solid var(--border-card)' : '1px solid transparent',
+                  cursor: 'pointer'
+                }}
               >
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <Flame size={12} />
                 <span>Hot</span>
               </button>
+
               <button
+                type="button"
                 onClick={() => setSortBy('likes')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  sortBy === 'likes' ? 'bg-card text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  fontSize: '0.74rem',
+                  fontWeight: sortBy === 'likes' ? 700 : 500,
+                  borderRadius: 'var(--radius-md)',
+                  background: sortBy === 'likes' ? 'var(--bg-card)' : 'transparent',
+                  color: sortBy === 'likes' ? '#f43f5e' : 'var(--text-muted)',
+                  border: sortBy === 'likes' ? '1px solid var(--border-card)' : '1px solid transparent',
+                  cursor: 'pointer'
+                }}
               >
-                <Heart className="w-3.5 h-3.5 text-red-500" />
+                <Heart size={12} />
                 <span>Most Liked</span>
               </button>
             </div>
           </div>
 
-          {/* Topic Tags Horizontal Bar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {/* Topic Tags Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
             {COMMUNITY_TAGS.map((tag) => {
               const TagIcon = tag.icon;
               const isSelected = selectedTag === tag.id;
               return (
                 <button
                   key={tag.id}
+                  type="button"
                   onClick={() => setSelectedTag(tag.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all border ${
-                    isSelected
-                      ? 'bg-primary text-primary-foreground border-primary shadow-sm font-semibold'
-                      : 'bg-card/60 text-muted-foreground hover:text-foreground border-border hover:bg-secondary/60'
-                  }`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 12px',
+                    borderRadius: 'var(--radius-full)',
+                    fontSize: '0.74rem',
+                    fontWeight: isSelected ? 700 : 500,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    background: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                    color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                    border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-card)',
+                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all 140ms ease'
+                  }}
                 >
-                  <TagIcon className="w-3.5 h-3.5" />
+                  <TagIcon size={12} />
                   <span>{tag.label}</span>
                 </button>
               );
@@ -445,116 +555,212 @@ export const CommunityView: React.FC = () => {
           </div>
         </div>
 
-        {/* Feed List */}
+        {/* Discussion Threads List */}
         {isLoading ? (
-          <div className="space-y-4 py-8 text-center text-muted-foreground text-sm">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            <div className="spin" style={{ width: '28px', height: '28px', border: '2px solid var(--primary)', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 12px auto' }} />
             <p>Loading community discussions...</p>
           </div>
         ) : filteredThreads.length === 0 ? (
-          <div className="bg-card border border-border/80 rounded-2xl p-12 text-center">
-            <MessageSquare className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-foreground">No discussions found</h3>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 mb-4">
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '48px 24px',
+            textAlign: 'center'
+          }}>
+            <MessageSquare size={38} style={{ color: 'var(--text-muted)', opacity: 0.4, margin: '0 auto 12px auto' }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>No discussions found</h3>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '6px 0 16px 0' }}>
               Be the first to share a question or thesis insight with the capstone network.
             </p>
             <button
+              type="button"
               onClick={() => setIsNewThreadOpen(true)}
-              className="px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl text-xs hover:opacity-90 transition-all"
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.76rem', padding: '6px 14px' }}
             >
               Start First Discussion
             </button>
           </div>
         ) : (
-          <div className="space-y-3.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredThreads.map((thread) => (
               <div
                 key={thread.id}
                 onClick={() => handleOpenDetail(thread)}
-                className={`group p-4 sm:p-5 rounded-2xl border bg-card transition-all cursor-pointer hover:border-primary/50 hover:shadow-md ${
-                  thread.isPinned 
-                    ? 'border-primary/30 bg-primary/[0.02]' 
-                    : 'border-border/80 hover:bg-card/90'
-                }`}
+                style={{
+                  background: thread.isPinned ? 'rgba(48, 209, 88, 0.04)' : 'var(--bg-card)',
+                  border: thread.isPinned ? '1px solid rgba(48, 209, 88, 0.35)' : '1px solid var(--border-card)',
+                  borderRadius: 'var(--radius-xl)',
+                  padding: '16px 20px',
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 160ms ease'
+                }}
               >
-                {/* Author row & Pinned status */}
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  <div className="flex items-center gap-2.5">
+                {/* Author Info Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img
-                      src={thread.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(thread.authorName)}&background=10b981&color=fff`}
+                      src={thread.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(thread.authorName)}&background=10b981&color=fff&bold=true`}
                       alt={thread.authorName}
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-border object-cover"
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '1.5px solid var(--border-subtle)',
+                        flexShrink: 0
+                      }}
                     />
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs sm:text-sm font-semibold text-foreground">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {thread.authorName}
                         </span>
                         {thread.authorRole && (
-                          <span className="px-2 py-0.2 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground border border-border/40">
+                          <span style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            padding: '1px 6px',
+                            borderRadius: 'var(--radius-full)',
+                            background: 'var(--bg-elevated)',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border-subtle)'
+                          }}>
                             {thread.authorRole}
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(thread.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </span>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                        {new Date(thread.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {thread.isPinned && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <Pin className="w-3 h-3" />
-                        Pinned
-                      </span>
-                    )}
-                  </div>
+                  {thread.isPinned && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      color: '#f59e0b',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      border: '1px solid rgba(245, 158, 11, 0.25)'
+                    }}>
+                      <Pin size={11} />
+                      Pinned
+                    </span>
+                  )}
                 </div>
 
-                {/* Title & Preview Content */}
-                <h3 className="text-sm sm:text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">
+                {/* Title & Body Preview */}
+                <h3 style={{
+                  fontSize: '0.96rem',
+                  fontWeight: 800,
+                  color: 'var(--text-primary)',
+                  margin: '0 0 6px 0',
+                  lineHeight: 1.35
+                }}>
                   {thread.title}
                 </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 leading-relaxed mb-3">
+                <p style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  margin: '0 0 12px 0',
+                  lineHeight: 1.5,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
                   {thread.content}
                 </p>
 
-                {/* Tags & Interaction Footer */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                {/* Tags & Action Bar */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid var(--border-subtle)',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     {thread.tags.map((t, idx) => (
                       <span
                         key={idx}
-                        className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-secondary/80 text-muted-foreground border border-border/40"
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'var(--bg-elevated)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border-subtle)'
+                        }}
                       >
                         #{t}
                       </span>
                     ))}
                     {thread.projectTitle && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
-                        <Layers className="w-2.5 h-2.5" />
+                      <span style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        padding: '2px 7px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--primary-light)',
+                        color: 'var(--primary)',
+                        border: '1px solid rgba(48, 209, 88, 0.25)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}>
+                        <Layers size={10} />
                         {thread.projectTitle}
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
+                      type="button"
                       onClick={(e) => handleToggleLike(thread.id, e)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors ${
-                        thread.hasLiked 
-                          ? 'text-red-500 bg-red-500/10' 
-                          : 'hover:text-red-400 hover:bg-secondary/60'
-                      }`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '3px 9px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: thread.hasLiked ? 'rgba(244, 63, 94, 0.12)' : 'transparent',
+                        color: thread.hasLiked ? '#f43f5e' : 'var(--text-muted)',
+                        border: thread.hasLiked ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid transparent',
+                        transition: 'all 140ms ease'
+                      }}
                     >
-                      <Heart className={`w-3.5 h-3.5 ${thread.hasLiked ? 'fill-current' : ''}`} />
-                      <span className="font-semibold">{thread.likesCount}</span>
+                      <Heart size={13} fill={thread.hasLiked ? '#f43f5e' : 'none'} />
+                      <span>{thread.likesCount}</span>
                     </button>
 
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-secondary/60 transition-colors">
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      <span className="font-semibold">{thread.repliesCount}</span>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '3px 8px',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)'
+                    }}>
+                      <MessageCircle size={13} />
+                      <span>{thread.repliesCount}</span>
                     </div>
                   </div>
                 </div>
@@ -566,107 +772,164 @@ export const CommunityView: React.FC = () => {
 
       {/* New Discussion Composer Modal */}
       {isNewThreadOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-xl bg-card border border-border rounded-2xl shadow-2xl p-6 overflow-hidden">
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 1200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '560px',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-xl)',
+            padding: '24px',
+            position: 'relative'
+          }}>
             <button
+              type="button"
               onClick={() => setIsNewThreadOpen(false)}
-              className="absolute top-5 right-5 p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-secondary/60"
+              className="btn btn-ghost btn-icon"
+              style={{ position: 'absolute', top: '16px', right: '16px' }}
             >
-              <X className="w-5 h-5" />
+              <X size={16} />
             </button>
 
-            <div className="flex items-center gap-2 mb-4">
-              <MessageSquare className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-foreground">Start Community Discussion</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'var(--primary-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <MessageSquare size={16} style={{ color: 'var(--primary)' }} />
+              </div>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                Start Community Discussion
+              </h2>
             </div>
 
-            <form onSubmit={handleCreateThread} className="space-y-4">
+            <form onSubmit={handleCreateThread} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
                   Title
                 </label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Tips for Passing Title Defense or ISO 25010 Evaluation Checklist"
+                  placeholder="e.g. Tips for Passing Title Defense or ISO 25010 Checklist"
                   required
-                  className="w-full px-3.5 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '0.84rem',
+                    background: 'var(--bg-app)',
+                    border: '1px solid var(--border-card)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    outline: 'none'
+                  }}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
                   Topic Category Tags
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {['DefensePrep', 'ThesisManuscript', 'WebAndApp', 'AIAndData', 'HardwareIoT', 'TipsAndAdvice'].map((tagOption) => {
-                    const isSelected = newTags.includes(tagOption);
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {['DefensePrep', 'ThesisManuscript', 'WebAndApp', 'AIAndData', 'HardwareIoT', 'TipsAndAdvice'].map((tag) => {
+                    const active = newTags.includes(tag);
                     return (
                       <button
+                        key={tag}
                         type="button"
-                        key={tagOption}
                         onClick={() => {
-                          setNewTags(prev => 
-                            isSelected ? prev.filter(t => t !== tagOption) : [...prev, tagOption]
-                          );
+                          if (active) {
+                            setNewTags(newTags.filter(t => t !== tag));
+                          } else {
+                            setNewTags([...newTags, tag]);
+                          }
                         }}
-                        className={`px-3 py-1 rounded-xl text-xs font-medium border transition-all ${
-                          isSelected
-                            ? 'bg-primary text-primary-foreground border-primary font-semibold'
-                            : 'bg-secondary/40 text-muted-foreground border-border/60 hover:text-foreground'
-                        }`}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: active ? 700 : 500,
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-md)',
+                          background: active ? 'var(--primary-light)' : 'var(--bg-app)',
+                          color: active ? 'var(--primary)' : 'var(--text-muted)',
+                          border: active ? '1px solid rgba(48, 209, 88, 0.4)' : '1px solid var(--border-card)',
+                          cursor: 'pointer'
+                        }}
                       >
-                        #{tagOption}
+                        #{tag}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
+              {project && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={linkProject}
+                    onChange={(e) => setLinkProject(e.target.checked)}
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <span>Tag active project workspace: <strong>{project.title}</strong></span>
+                </label>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
-                  Discussion Content / Breakdown
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Discussion Content
                 </label>
                 <textarea
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Share your technical question, sprint breakthrough, or capstone defense tips..."
-                  required
+                  placeholder="Share details, problem baseline, question, or research advice..."
                   rows={5}
-                  className="w-full px-3.5 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '0.82rem',
+                    background: 'var(--bg-app)',
+                    border: '1px solid var(--border-card)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    resize: 'vertical'
+                  }}
                 />
               </div>
 
-              {project && (
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="linkProj"
-                    checked={linkProject}
-                    onChange={(e) => setLinkProject(e.target.checked)}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="linkProj" className="text-xs text-muted-foreground cursor-pointer">
-                    Tag current project: <span className="font-semibold text-foreground">{project.title}</span>
-                  </label>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
                 <button
                   type="button"
                   onClick={() => setIsNewThreadOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-muted-foreground hover:bg-secondary transition-colors"
+                  className="btn btn-ghost btn-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingThread}
-                  className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-xl text-xs hover:opacity-90 transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 disabled:opacity-50"
+                  className="btn btn-primary btn-sm"
+                  style={{ fontWeight: 700, padding: '0 16px', height: '34px' }}
                 >
-                  {isSubmittingThread ? <span>Publishing...</span> : <span>Publish Discussion</span>}
+                  {isSubmittingThread ? 'Publishing...' : 'Publish Thread'}
                 </button>
               </div>
             </form>
@@ -674,138 +937,188 @@ export const CommunityView: React.FC = () => {
         </div>
       )}
 
-      {/* Thread Detail & Replies Modal / Drawer */}
+      {/* Discussion Details & Comments Modal Drawer */}
       {activeThreadDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl p-6 sm:p-7 max-h-[90vh] flex flex-col overflow-hidden">
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 1200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '680px',
+            maxHeight: '90vh',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-xl)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
             {/* Header */}
-            <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
-              <div className="flex items-center gap-3">
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--bg-card)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <img
-                  src={activeThreadDetail.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(activeThreadDetail.authorName)}&background=10b981&color=fff`}
+                  src={activeThreadDetail.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(activeThreadDetail.authorName)}&background=10b981&color=fff&bold=true`}
                   alt={activeThreadDetail.authorName}
-                  className="w-9 h-9 rounded-full border border-border object-cover"
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
                 />
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-foreground">
-                      {activeThreadDetail.authorName}
-                    </span>
-                    {activeThreadDetail.authorRole && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground">
-                        {activeThreadDetail.authorRole}
-                      </span>
-                    )}
+                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {activeThreadDetail.authorName}
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    Posted {new Date(activeThreadDetail.createdAt).toLocaleString()}
-                  </span>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    {activeThreadDetail.authorRole || 'Researcher'}
+                  </div>
                 </div>
               </div>
 
               <button
+                type="button"
                 onClick={() => setActiveThreadDetail(null)}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-full hover:bg-secondary/60"
+                className="btn btn-ghost btn-icon"
               >
-                <X className="w-5 h-5" />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Post Content */}
-            <div className="py-4 overflow-y-auto flex-1 space-y-4 pr-1">
-              <div>
-                <h2 className="text-lg font-bold text-foreground mb-2">
-                  {activeThreadDetail.title}
-                </h2>
-                <p className="text-sm text-foreground/90 whitespace-pre-line leading-relaxed">
-                  {activeThreadDetail.content}
-                </p>
-              </div>
+            {/* Content Scroll Container */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 10px 0' }}>
+                {activeThreadDetail.title}
+              </h2>
+              <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 16px 0', whiteSpace: 'pre-wrap' }}>
+                {activeThreadDetail.content}
+              </p>
 
-              {/* Tags & Action Bar */}
-              <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                <div className="flex flex-wrap gap-1.5">
-                  {activeThreadDetail.tags.map((t, idx) => (
-                    <span key={idx} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-secondary text-muted-foreground">
-                      #{t}
-                    </span>
-                  ))}
-                </div>
-
+              {/* Likes and stats */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                paddingBottom: '16px',
+                borderBottom: '1px solid var(--border-subtle)',
+                marginBottom: '16px'
+              }}>
                 <button
-                  onClick={() => handleToggleLike(activeThreadDetail.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    activeThreadDetail.hasLiked
-                      ? 'bg-red-500/10 text-red-500 border border-red-500/20'
-                      : 'bg-secondary text-muted-foreground hover:text-red-400'
-                  }`}
+                  type="button"
+                  onClick={(e) => handleToggleLike(activeThreadDetail.id, e)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    background: activeThreadDetail.hasLiked ? 'rgba(244, 63, 94, 0.12)' : 'var(--bg-app)',
+                    color: activeThreadDetail.hasLiked ? '#f43f5e' : 'var(--text-muted)',
+                    border: activeThreadDetail.hasLiked ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid var(--border-card)',
+                    cursor: 'pointer'
+                  }}
                 >
-                  <Heart className={`w-3.5 h-3.5 ${activeThreadDetail.hasLiked ? 'fill-current' : ''}`} />
+                  <Heart size={13} fill={activeThreadDetail.hasLiked ? '#f43f5e' : 'none'} />
                   <span>{activeThreadDetail.likesCount} Likes</span>
                 </button>
+
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  {threadReplies.length} Comments
+                </span>
               </div>
 
-              {/* Replies Section */}
-              <div className="pt-4 border-t border-border">
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageCircle className="w-4 h-4 text-primary" />
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Comments ({threadReplies.length})
-                  </h4>
-                </div>
-
+              {/* Replies list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
                 {isLoadingReplies ? (
-                  <div className="py-6 text-center text-xs text-muted-foreground">Loading comments...</div>
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    Loading comments...
+                  </div>
                 ) : threadReplies.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-secondary/30 text-center text-xs text-muted-foreground">
-                    No comments yet. Start the conversation below!
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    No comments yet. Be the first to reply!
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {threadReplies.map((reply) => (
-                      <div key={reply.id} className="p-3 rounded-xl bg-secondary/40 border border-border/60">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={reply.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.authorName)}&background=10b981&color=fff`}
-                              alt={reply.authorName}
-                              className="w-5 h-5 rounded-full object-cover"
-                            />
-                            <span className="text-xs font-semibold text-foreground">{reply.authorName}</span>
-                            {reply.authorRole && (
-                              <span className="text-[10px] text-muted-foreground">({reply.authorRole})</span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(reply.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  threadReplies.map((rep) => (
+                    <div
+                      key={rep.id}
+                      style={{
+                        background: 'var(--bg-app)',
+                        border: '1px solid var(--border-card)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '12px 14px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <img
+                          src={rep.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(rep.authorName)}&background=10b981&color=fff&bold=true`}
+                          alt={rep.authorName}
+                          style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {rep.authorName}
+                        </span>
+                        {rep.authorRole && (
+                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', padding: '0 4px', background: 'var(--bg-elevated)', borderRadius: '4px' }}>
+                            {rep.authorRole}
                           </span>
-                        </div>
-                        <p className="text-xs text-foreground/90 leading-relaxed pl-7">
-                          {reply.content}
-                        </p>
+                        )}
+                        <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                          {new Date(rep.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                        {rep.content}
+                      </p>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
 
             {/* Comment Composer Footer */}
-            <form onSubmit={handlePostReply} className="pt-3 border-t border-border flex gap-2">
+            <form onSubmit={handlePostReply} style={{
+              padding: '12px 16px',
+              borderTop: '1px solid var(--border-subtle)',
+              background: 'var(--bg-card)',
+              display: 'flex',
+              gap: '8px'
+            }}>
               <input
                 type="text"
                 value={newReplyContent}
                 onChange={(e) => setNewReplyContent(e.target.value)}
-                placeholder="Write a constructive response or feedback..."
-                required
-                className="flex-1 px-3.5 py-2.5 bg-secondary/40 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                placeholder="Write a comment or advice..."
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  fontSize: '0.8rem',
+                  background: 'var(--bg-app)',
+                  border: '1px solid var(--border-card)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
               />
               <button
                 type="submit"
                 disabled={isSubmittingReply || !newReplyContent.trim()}
-                className="px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-xs hover:opacity-90 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                className="btn btn-primary btn-sm"
+                style={{ height: '34px', padding: '0 14px', fontWeight: 700, gap: '4px' }}
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send size={13} />
                 <span>Reply</span>
               </button>
             </form>

@@ -2856,5 +2856,151 @@ html.light .btn-github-oauth {
   border-color: var(--border-card);
 }
 
+/* ==========================================================================
+   Community & Predictions Views Design System Tokens & Classes
+   ========================================================================== */
+
+.community-view-wrapper,
+.predictions-view-wrapper {
+  min-height: 100vh;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  padding-bottom: 80px;
+}
+
+.community-hero-section {
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 28px 24px;
+}
+
+.community-hero-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .community-hero-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.community-stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 8px 16px;
+}
+
+.community-stat-item {
+  text-align: center;
+}
+
+.community-stat-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.community-stat-lbl {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.community-divider-v {
+  width: 1px;
+  height: 24px;
+  background: var(--border-subtle);
+}
+
+.community-main-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.community-thread-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-xl);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: all 180ms var(--ease-out);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.community-thread-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-highlight, rgba(255, 255, 255, 0.2));
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.community-avatar-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.community-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(48, 209, 88, 0.25);
+  transition: all 140ms ease;
+}
+
+.prediction-option-row {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.prediction-option-row:hover {
+  border-color: var(--border-card);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.prediction-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  opacity: 0.18;
+  transition: width 400ms var(--ease-out);
+}
+
+
 
 
