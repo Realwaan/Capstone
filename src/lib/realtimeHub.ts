@@ -53,10 +53,10 @@ export class RealtimeHub {
   private globalChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
   private activeOptions: RealtimeSubscriptionOptions | null = null;
   private currentProjectId: string | null = null;
-  private listeners: Map<string, Set<() => void>> = new Map();
+  private listeners: Map<string, Set<(payload?: any) => void>> = new Map();
   public readonly peerId: string = `peer_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
 
-  public on(event: string, callback: () => void): () => void {
+  public on(event: string, callback: (payload?: any) => void): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
@@ -66,9 +66,9 @@ export class RealtimeHub {
     };
   }
 
-  private emit(event: string) {
+  private emit(event: string, payload?: any) {
     this.listeners.get(event)?.forEach(cb => {
-      try { cb(); } catch (e) { console.warn(e); }
+      try { cb(payload); } catch (e) { console.warn(e); }
     });
   }
 
@@ -290,6 +290,13 @@ export class RealtimeHub {
           }
         });
 
+        // Global Code Workspace File Sync Handler
+        globalChan.on('broadcast', { event: 'workspace_file_change' }, (msg: any) => {
+          const { _senderPeerId } = msg.payload || {};
+          if (_senderPeerId === this.peerId) return;
+          this.emit('workspace_file_change', msg.payload);
+        });
+
         globalChan.on(
           'postgres_changes',
           { event: 'DELETE', schema: 'public', table: 'projects' },
@@ -380,6 +387,12 @@ export class RealtimeHub {
         if (projectId && this.activeOptions?.onProjectDeleted) {
           this.activeOptions.onProjectDeleted(projectId, projectTitle, deletedBy);
         }
+      });
+
+      channel.on('broadcast', { event: 'workspace_file_change' }, (msg: any) => {
+        const { _senderPeerId } = msg.payload || {};
+        if (_senderPeerId === this.peerId) return;
+        this.emit('workspace_file_change', msg.payload);
       });
 
       // ==========================================

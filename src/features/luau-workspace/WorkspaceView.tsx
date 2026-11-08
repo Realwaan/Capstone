@@ -14,6 +14,7 @@ import {
   formatCodeStructure
 } from '../../lib/codeStructureChecker';
 import { useProject } from '../../context/ProjectContext';
+import { realtimeHub } from '../../lib/realtimeHub';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -26,8 +27,19 @@ import {
 import { toast } from 'sonner';
 
 export const WorkspaceView: React.FC = () => {
-  const { project, addTask } = useProject();
-  const [files, setFiles] = useState<WorkspaceFile[]>(initialFiles);
+  const { project, addTask, currentMember } = useProject();
+  const storageKey = `capstoneflow_proj_${project?.id || 'default'}_workspace_files`;
+
+  const [files, setFiles] = useState<WorkspaceFile[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return initialFiles;
+  });
   const [activeId, setActiveId] = useState<string | null>(initialFiles[0].id);
   const [themeId, setThemeId] = useState<ThemeId>('real-dark');
   const [lspStatus, setLspStatus] = useState<'idle' | 'connecting' | 'ready' | 'error'>('idle');
@@ -38,7 +50,65 @@ export const WorkspaceView: React.FC = () => {
   const mcp = useMemo(() => createMockMcpServer(), []);
   const [mcpLogs, setMcpLogs] = useState<string[]>([]);
 
-  const activeFile = files.find(f => f.id === activeId) ?? null;
+  const activeFile = files.find(f => f.id === activeId) ?? files[0] ?? null;
+
+  // Load project-scoped files when switching projects
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFiles(parsed);
+          setActiveId(parsed[0].id);
+          return;
+        }
+      }
+    } catch {}
+    setFiles(initialFiles);
+    setActiveId(initialFiles[0].id);
+  }, [storageKey]);
+
+  // Multi-user & cross-tab real-time sync for Code Structure & Format files
+  useEffect(() => {
+    let tabChannel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        tabChannel = new BroadcastChannel('capstoneflow_workspace_files');
+        tabChannel.onmessage = (event) => {
+          const { projectId, file, senderId } = event.data || {};
+          if (senderId === realtimeHub.peerId) return;
+          if (projectId === (project?.id || 'default') && file?.id) {
+            setFiles(prev => {
+              const exists = prev.some(f => f.id === file.id);
+              const next = exists ? prev.map(f => (f.id === file.id ? file : f)) : [...prev, file];
+              try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+              return next;
+            });
+          }
+        };
+      }
+    } catch {}
+
+    const unsubRealtime = realtimeHub.on('workspace_file_change', (payload: any) => {
+      if (!payload || payload._senderPeerId === realtimeHub.peerId) return;
+      if (payload.projectId === (project?.id || 'default') && payload.file?.id) {
+        setFiles(prev => {
+          const exists = prev.some(f => f.id === payload.file.id);
+          const next = exists
+            ? prev.map(f => (f.id === payload.file.id ? payload.file : f))
+            : [...prev, payload.file];
+          try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
+    });
+
+    return () => {
+      if (tabChannel) tabChannel.close();
+      unsubRealtime();
+    };
+  }, [project?.id, storageKey]);
 
   useEffect(() => {
     lsp.connect().then(() => setLspStatus(lsp.status));
@@ -50,9 +120,41 @@ export const WorkspaceView: React.FC = () => {
     setLspStatus(lsp.status);
   };
 
+  const broadcastFileSync = (updatedFile: WorkspaceFile) => {
+    const projId = project?.id || 'default';
+    void realtimeHub.broadcast('workspace_file_change', {
+      projectId: projId,
+      file: updatedFile,
+      updatedBy: currentMember?.name || 'Collaborator'
+    });
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const ch = new BroadcastChannel('capstoneflow_workspace_files');
+        ch.postMessage({
+          projectId: projId,
+          file: updatedFile,
+          senderId: realtimeHub.peerId
+        });
+        ch.close();
+      }
+    } catch {}
+  };
+
   const updateActiveContent = (content: string) => {
     if (!activeId) return;
-    setFiles(prev => prev.map(f => (f.id === activeId ? { ...f, content, modified: true } : f)));
+    setFiles(prev => {
+      let changedFile: WorkspaceFile | null = null;
+      const next = prev.map(f => {
+        if (f.id === activeId) {
+          changedFile = { ...f, content, modified: true };
+          return changedFile;
+        }
+        return f;
+      });
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+      if (changedFile) broadcastFileSync(changedFile);
+      return next;
+    });
   };
 
   const handleCreate = () => {
@@ -66,8 +168,13 @@ export const WorkspaceView: React.FC = () => {
       content: `-- Module: module_${shortId}.luau\nlocal Module = {}\n\nfunction Module.execute(input: string): string\n    return input\nend\n\nreturn Module\n`,
       modified: false
     };
-    setFiles(prev => [...prev, f]);
+    setFiles(prev => {
+      const next = [...prev, f];
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
     setActiveId(id);
+    broadcastFileSync(f);
   };
 
   const auditReport = useMemo(() => {

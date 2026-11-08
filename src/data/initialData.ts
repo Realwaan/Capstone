@@ -114,7 +114,7 @@ export const initialPhases: MilestonePhase[] = [
       { id: 'd13', title: 'Automated Vitest Unit Test Suite (80%+ Coverage)', completed: false, requiredForDefense: true },
       { id: 'd14', title: 'Playwright End-to-End User Flow Tests', completed: false, requiredForDefense: true },
       { id: 'd15', title: 'OWASP Security Vulnerability Audit & Remediation', completed: false, requiredForDefense: true },
-      { id: 'd16', title: 'GitHub Actions Continuous Integration (CI) Workflow', completed: false, requiredForDefense: true }
+      { id: 'd16', title: 'Code Structure & Formatting Compliance Verification', completed: false, requiredForDefense: true }
     ]
   },
   {
