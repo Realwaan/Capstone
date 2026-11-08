@@ -1,0 +1,18 @@
+[package]
+name = "luau-workspace"
+version = "0.1.0"
+description = "Tauri shell for Luau Workspace — wraps Vite app, sidecars luau-lsp@1.68.1 (mirrors Real/Madium). No Spoofer/Loader bypass."
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+
+# To build: `npm run tauri dev` / `npm run tauri build` after `cargo install tauri-cli`
+# Place public luau-lsp@1.68.1 at src-tauri/bin/luau-lsp.exe (download from github.com/JohnnyMorganz/luau-lsp/releases)

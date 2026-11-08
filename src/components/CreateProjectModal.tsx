@@ -303,8 +303,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </h2>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 {isProvisioning 
-                  ? 'Setting up your new Kanban matrix, milestone phases, team roster & manuscript outline' 
-                  : 'Spin up a fresh set of boards, tasks, milestones & research tracks for your capstone project'}
+                  ? 'Setting up your new Kanban matrix, milestone phases, team roster & code structure rules' 
+                  : 'Spin up a fresh set of boards, tasks, milestones & code verification tracks for your capstone project'}
               </div>
             </div>
           </div>
@@ -400,7 +400,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem', color: provisioningStep >= 3 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                 {provisioningStep >= 3 ? <Check size={14} style={{ color: 'var(--primary)' }} /> : <Loader2 size={14} className="spin" />}
-                <span>Manuscript Chapter Outlines</span>
+                <span>Code Structure & Format Rules</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem', color: provisioningStep >= 4 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                 {provisioningStep >= 4 ? <Check size={14} style={{ color: 'var(--primary)' }} /> : <Loader2 size={14} className="spin" />}

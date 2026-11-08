@@ -347,7 +347,7 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
         flexDirection: 'column',
         minHeight: '100vh',
         width: '100%',
-        background: 'var(--bg-main)',
+        background: 'var(--bg-app)',
         color: 'var(--text-primary)',
         fontFamily: 'var(--font-sans)',
         position: 'relative'
@@ -355,14 +355,17 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
     >
       {/* Top Organization Header */}
       <header 
+        className="projects-portal-header"
         style={{
-          height: '56px',
+          minHeight: '56px',
           borderBottom: '1px solid var(--border-subtle)',
           background: 'var(--bg-card)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 24px',
+          flexWrap: 'wrap',
+          gap: '10px',
+          padding: '10px 24px',
           position: 'sticky',
           top: 0,
           zIndex: 40
@@ -395,7 +398,7 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
         </div>
 
         {/* Right: Quick Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="projects-portal-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {onOpenCommandPalette && (
             <button
               type="button"
@@ -500,7 +503,7 @@ export const ProjectsPortalView: React.FC<ProjectsPortalViewProps> = ({
       </header>
 
       {/* Main Projects Portal Center (Full-Width Focused Management Dashboard) */}
-      <main style={{ flex: 1, width: '100%', maxWidth: '1440px', margin: '0 auto', padding: '28px 36px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <main className="projects-portal-main" style={{ flex: 1, width: '100%', maxWidth: '1440px', margin: '0 auto', padding: '28px 36px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Header Row: Title & Overview Bento Grid */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>

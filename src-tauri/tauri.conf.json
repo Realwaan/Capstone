@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Luau Workspace",
+  "version": "0.1.0",
+  "identifier": "com.capstone.luau-workspace",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "Luau Workspace — Real+Madium reference", "width": 1280, "height": 800 }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["../public/vite.svg"],
+    "resources": { "bin/luau-lsp.exe": "bin/luau-lsp.exe" }
+  },
+  "plugins": {}
+}

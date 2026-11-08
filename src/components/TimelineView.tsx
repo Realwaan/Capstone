@@ -191,7 +191,7 @@ export const TimelineView: React.FC = () => {
   };
 
   return (
-    <div className="view-container animate-fade-in" style={{ padding: '24px 32px 100px 32px' }}>
+    <div className="view-container animate-fade-in" style={{ paddingBottom: '48px' }}>
       {/* Top Header & Defense Target */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>

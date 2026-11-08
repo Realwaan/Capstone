@@ -2464,11 +2464,76 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const loadTemplateTickets = () => {
     const currentProjId = activeProjectIdRef.current || project.id;
-    setTasks([]);
-    localStorage.setItem(`capstoneflow_proj_${currentProjId}_tasks`, JSON.stringify([]));
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_tasks`, JSON.stringify([]));
-    logActivity('cleared task matrix (/clear-tickets)', 'Task Matrix');
-    toast.success('Matrix reset to clean slate');
+    const activePhase = phases.find(p => p.id === project.currentPhaseId) || phases[0];
+    const deliverables = activePhase?.keyDeliverables?.length
+      ? activePhase.keyDeliverables
+      : [
+          { id: 'tmpl-1', title: 'System Architecture & Data Flow Specification', completed: false, requiredForDefense: true },
+          { id: 'tmpl-2', title: 'Relational Database Schema & Migration Pipeline', completed: false, requiredForDefense: true },
+          { id: 'tmpl-3', title: 'Authentication & Role-Based Access Control Engine', completed: false, requiredForDefense: true },
+          { id: 'tmpl-4', title: 'Core Sprint Feature UI & Automated Test Coverage', completed: false, requiredForDefense: true },
+        ];
+
+    const existingTitles = new Set(tasks.map(t => t.title.trim().toLowerCase()));
+    const categories: Task['category'][] = ['architecture', 'database', 'backend', 'frontend', 'testing'];
+    const priorities: Task['priority'][] = ['high', 'high', 'medium', 'medium'];
+    const baseDueMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const todayIso = new Date().toISOString().split('T')[0];
+
+    const seededTasks: Task[] = deliverables
+      .filter(d => !existingTitles.has(d.title.trim().toLowerCase()))
+      .map((d, idx) => ({
+        id: `task-tmpl-${Date.now()}-${idx}`,
+        title: d.title,
+        description: `Deliverable implementation and verification for ${activePhase?.title || 'the active sprint phase'}.`,
+        problemStatement: `Required milestone deliverable for ${activePhase?.title || 'Phase 1'} defense readiness.`,
+        category: categories[idx % categories.length],
+        priority: priorities[idx % priorities.length],
+        status: 'todo',
+        assigneeId: '',
+        phaseId: activePhase?.id || project.currentPhaseId || 1,
+        storyPoints: 5,
+        estimatedHours: 8,
+        loggedHours: 0,
+        dueDate: new Date(baseDueMs + idx * 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        createdAt: todayIso,
+        updatedAt: todayIso,
+        acceptanceCriteria: [
+          {
+            id: `ac-${Date.now()}-${idx}-1`,
+            text: `Complete implementation of ${d.title}`,
+            completed: false
+          },
+          {
+            id: `ac-${Date.now()}-${idx}-2`,
+            text: 'Verify functionality and attach PR or evidence artifact',
+            completed: false
+          }
+        ],
+        subtasks: [
+          { id: `st-${Date.now()}-${idx}-1`, title: 'Draft technical specification & interface', completed: false },
+          { id: `st-${Date.now()}-${idx}-2`, title: 'Implement core logic & unit tests', completed: false }
+        ]
+      }));
+
+    if (seededTasks.length === 0) {
+      toast.info('Sprint templates are already loaded in your Task Matrix.');
+      return;
+    }
+
+    setTasks(prev => {
+      const next = [...seededTasks, ...prev];
+      localStorage.setItem(`capstoneflow_proj_${currentProjId}_tasks`, JSON.stringify(next));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_tasks`, JSON.stringify(next));
+      return next;
+    });
+
+    seededTasks.forEach(t => {
+      void syncTaskToSupabase(t, currentProjId);
+      broadcastTaskMutation('UPSERT', t);
+    });
+    logActivity('loaded sprint template tickets (/load-tickets)', `${seededTasks.length} tasks added`);
+    toast.success(`Loaded ${seededTasks.length} sprint template tickets into To Do`);
   };
 
   const rebuildDatabase = () => {
@@ -2516,20 +2581,47 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const moveTaskStatus = (taskId: string, newStatus: TaskStatus): boolean => {
     const target = tasks.find(task => task.id === taskId);
-    if (!target) return false;
+    if (!target || target.status === newStatus) return false;
     const currentProjId = activeProjectIdRef.current || project.id;
 
-    const canStageTask = currentMember.role === 'leader' && target.status === 'backlog' && newStatus === 'todo';
+    // Route workflow-gated transitions through their dedicated handlers so
+    // permissions, atomic claims, and submission/review gates are enforced.
+    if ((target.status === 'todo' || target.status === 'backlog') && newStatus === 'in_progress') {
+      void claimTask(taskId);
+      return true;
+    }
+    if (target.status === 'in_progress' && newStatus === 'todo') {
+      return releaseTask(taskId);
+    }
+    if (target.status === 'in_progress' && newStatus === 'peer_review') {
+      return resolveTask(taskId, target.prUrl || target.deliverableUrl, 'Submitted via Kanban board');
+    }
+    if (
+      (target.status === 'peer_review' && newStatus === 'adviser_review') ||
+      (target.status === 'adviser_review' && newStatus === 'done')
+    ) {
+      return reviewTask(
+        taskId,
+        newStatus === 'done'
+          ? 'Approved via Kanban board'
+          : 'Peer review verified via Kanban board'
+      );
+    }
+
+    const canStageTask =
+      (currentMember.role === 'leader' || isOwner) &&
+      ((target.status === 'backlog' && newStatus === 'todo') ||
+        (target.status === 'todo' && newStatus === 'backlog' && !target.assigneeId));
     if (!canStageTask) {
       toast.info('This workflow stage is protected', {
-        description: 'Claim work, submit evidence, and complete the review gates from the ticket.'
+        description: 'Claim work, submit evidence, and complete the review gates in sequence.'
       });
       return false;
     }
 
     const updated: Task = {
       ...target,
-      status: 'todo',
+      status: newStatus,
       updatedAt: new Date().toISOString().split('T')[0]
     };
     setTasks(prev => {
@@ -2540,8 +2632,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     void syncTaskToSupabase(updated, currentProjId);
     broadcastTaskMutation('UPSERT', updated);
     syncTaskStateToDiscord(updated, currentMember.name);
-    logActivity('staged task for the active workflow', target.title);
-    toast.info(`Moved to to do: "${target.title}"`);
+    logActivity(
+      newStatus === 'todo' ? 'staged task for the active workflow' : 'returned task to backlog',
+      target.title
+    );
+    toast.info(`Moved to ${newStatus.replace('_', ' ')}: "${target.title}"`);
     return true;
   };
 

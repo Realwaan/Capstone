@@ -75,6 +75,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     signOffPhase,
     claimTask,
     releaseTask,
+    reviewTask,
     canSignOffMilestones,
     canChangePhases
   } = useProject();
@@ -508,7 +509,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {/* Stage 3: Claimed & In Progress */}
           <div 
-            onClick={() => setActiveView('kanban')}
+            onClick={() => setActivePipelineFilter('my_claimed')}
             style={{
               background: 'rgba(99, 102, 241, 0.08)',
               border: '1px solid rgba(99, 102, 241, 0.3)',
@@ -534,7 +535,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {/* Stage 4: Peer Review */}
           <div 
-            onClick={() => setActiveView('kanban')}
+            onClick={() => setActivePipelineFilter('in_review')}
             style={{
               background: 'rgba(56, 189, 248, 0.08)',
               border: '1px solid rgba(56, 189, 248, 0.3)',
@@ -560,7 +561,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {/* Stage 5: Adviser Consultation */}
           <div 
-            onClick={() => setActiveView('kanban')}
+            onClick={() => setActivePipelineFilter('in_review')}
             style={{
               background: 'rgba(168, 85, 247, 0.08)',
               border: '1px solid rgba(168, 85, 247, 0.3)',
@@ -614,8 +615,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Main CRM Grid: Left Claiming Opportunities + Right Team Capacity Leaderboard */}
       <div className="grid-cols-3" style={{ alignItems: 'flex-start' }}>
-        {/* Left Column (Span 2): Claimable Work Hub & My Active Queue */}
-        <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Left Column (Span 2 on Desktop, 1 on Mobile): Claimable Work Hub & My Active Queue */}
+        <div className="dashboard-main-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* ⚡ 1. CRM Inbound Opportunities: Open Tasks for Claiming */}
           {(activePipelineFilter === 'all' || activePipelineFilter === 'claimable') && (
@@ -831,6 +832,124 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {myClaimedTasks.length === 0 && (
                   <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)' }}>
                     You currently have no active claimed tickets. Claim an open ticket above to start work!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 🛡️ 3. QA & Faculty Adviser Review Queue */}
+          {(activePipelineFilter === 'all' || activePipelineFilter === 'in_review') && (
+            <div className="card" style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ShieldCheck size={16} style={{ color: '#38bdf8' }} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>QA & Adviser Verification Queue</span>
+                      <span className="badge" style={{ fontSize: '0.64rem', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', fontWeight: 800 }}>
+                        {totalReviewQueue} Pending
+                      </span>
+                    </h3>
+                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Tickets awaiting peer QA verification or faculty adviser consultation sign-off
+                    </p>
+                  </div>
+                </div>
+
+                <button onClick={() => setActiveView('kanban')} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)', gap: '4px', fontSize: '0.74rem' }}>
+                  <span>Review Board</span>
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[...peerReviewTasks, ...adviserReviewTasks].map(task => {
+                  const assignee = members.find(m => m.id === task.assigneeId);
+                  const isPeer = task.status === 'peer_review';
+                  const canApprove = isPeer || isOwner || isAdviser;
+
+                  return (
+                    <div
+                      key={task.id}
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: '220px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <span
+                            className="badge"
+                            style={{
+                              fontSize: '0.58rem',
+                              background: isPeer ? 'rgba(56, 189, 248, 0.2)' : 'rgba(168, 85, 247, 0.2)',
+                              color: isPeer ? '#38bdf8' : '#c084fc',
+                              textTransform: 'uppercase',
+                              fontWeight: 700
+                            }}
+                          >
+                            {isPeer ? '4. QA Peer Review' : '5. Adviser Sign-Off'}
+                          </span>
+                          <PriorityBadge priority={task.priority} size="xs" />
+                          {assignee && (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              Owner: <strong style={{ color: 'var(--text-secondary)' }}>{assignee.name}</strong>
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          onClick={() => setSelectedTicketTask(task)}
+                          style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}
+                        >
+                          {task.title}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTicketTask(task)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.72rem', height: '28px' }}
+                        >
+                          Inspect
+                        </button>
+                        {canApprove && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              reviewTask(
+                                task.id,
+                                isPeer
+                                  ? 'QA peer review approved via Dashboard'
+                                  : 'Adviser sign-off verified via Dashboard'
+                              )
+                            }
+                            className="btn btn-primary btn-sm"
+                            style={{ fontSize: '0.72rem', height: '28px', gap: '4px' }}
+                          >
+                            <Check size={12} />
+                            <span>{isPeer ? 'Approve QA' : 'Verify Done'}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {totalReviewQueue === 0 && (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)' }}>
+                    No tickets currently waiting in Peer QA or Adviser Review.
                   </div>
                 )}
               </div>

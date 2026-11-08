@@ -22,6 +22,7 @@ import { SettingsView } from './components/SettingsView';
 import { ProjectsPortalView } from './components/ProjectsPortalView';
 import { CommunityView } from './components/CommunityView';
 import { PredictionsView } from './components/PredictionsView';
+import { WorkspaceView } from './features/luau-workspace/WorkspaceView';
 
 // Modals
 import { TaskModal } from './components/TaskModal';
@@ -45,7 +46,8 @@ const VALID_VIEWS: ViewType[] = [
   'revisions', 
   'team', 
   'reports', 
-  'settings'
+  'settings',
+  'workspace'
 ];
 
 const getInitialView = (): ViewType => {
@@ -69,9 +71,9 @@ const MainLayout: React.FC = () => {
   const navigationSequenceRef = useRef(0);
   const navigationTimerRef = useRef<number | null>(null);
 
-  // Listen to external hash changes (e.g. clicking invite links or browser back/forward)
+  // Sync on initial mount & external hash changes (e.g. clicking invite links or browser back/forward)
   useEffect(() => {
-    const handleHash = () => {
+    const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
       if (hash.includes('join=')) {
         setActiveView('projects');
@@ -80,10 +82,25 @@ const MainLayout: React.FC = () => {
       const clean = hash.split('?')[0].toLowerCase() as ViewType;
       if (VALID_VIEWS.includes(clean)) {
         setActiveView(clean);
+        try {
+          localStorage.setItem('capstone_active_view', clean);
+        } catch {
+          // ignore storage errors
+        }
       }
     };
-    window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
+
+    window.addEventListener('hashchange', handleHashChange);
+    if (!window.location.hash.includes('join=')) {
+      window.history.replaceState(null, '', `#${activeView}`);
+    }
+    try {
+      localStorage.setItem('capstone_active_view', activeView);
+    } catch {
+      // ignore storage errors
+    }
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
   // Clear any pending fallback navigation timer on unmount.
@@ -176,24 +193,6 @@ const MainLayout: React.FC = () => {
       navigationTimerRef.current = null;
     }, 260);
   };
-
-  // Sync on initial mount & hash change (e.g. browser back/forward)
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '').toLowerCase() as ViewType;
-      if (VALID_VIEWS.includes(hash)) {
-        setActiveView(hash);
-        localStorage.setItem('capstone_active_view', hash);
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    // Ensure URL hash reflects current view on mount
-    window.history.replaceState(null, '', `#${activeView}`);
-    localStorage.setItem('capstone_active_view', activeView);
-
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
 
   // Global Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -295,6 +294,8 @@ const MainLayout: React.FC = () => {
               {activeView === 'reports' && <ReportsView />}
 
               {activeView === 'settings' && <SettingsView />}
+
+              {activeView === 'workspace' && <WorkspaceView />}
             </main>
           </div>
 

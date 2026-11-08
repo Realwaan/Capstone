@@ -30,7 +30,8 @@ import {
   GitPullRequest,
   Workflow,
   CornerDownLeft,
-  Inbox
+  Inbox,
+  X
 } from 'lucide-react';
 import { AIUXWorkflowsModal } from './AIUXWorkflowsModal';
 import { toast } from 'sonner';
@@ -86,6 +87,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverColId, setDragOverColId] = useState<TaskStatus | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [isWorkflowsOpen, setIsWorkflowsOpen] = useState<boolean>(false);
 
@@ -129,17 +131,33 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
     setDraggingTaskId(taskId);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, colId: TaskStatus) => {
     e.preventDefault();
+    if (dragOverColId !== colId) {
+      setDragOverColId(colId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColId(null);
   };
 
   const handleDrop = (e: React.DragEvent, targetStatus: TaskStatus) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('text/plain') || draggingTaskId;
-    if (taskId && targetStatus === 'todo') {
+    if (taskId) {
       moveTaskStatus(taskId, targetStatus);
     }
     setDraggingTaskId(null);
+    setDragOverColId(null);
+  };
+
+  const hasActiveFilters = filterCategory !== 'all' || selectedAssignee !== 'all' || searchQuery.trim().length > 0;
+
+  const handleResetFilters = () => {
+    handleSetFilterCategory('all');
+    handleSetSelectedAssignee('all');
+    setSearchQuery('');
   };
 
   const handleQuickAdd = (e: React.FormEvent) => {
@@ -273,6 +291,46 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             </button>
           </div>
 
+          {/* Live Keyword Filter Search */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: '175px', flex: '1 1 175px', maxWidth: '240px' }}>
+            <Search size={13} style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter tasks..."
+              aria-label="Filter tasks by keyword"
+              className="input-field"
+              style={{
+                height: '32px',
+                paddingLeft: '28px',
+                paddingRight: searchQuery ? '26px' : '10px',
+                fontSize: '0.76rem',
+                borderRadius: 'var(--radius-sm)'
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear task search"
+                style={{
+                  position: 'absolute',
+                  right: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '2px'
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
           {/* Category Filter */}
           <CustomDropdown
             value={filterCategory}
@@ -282,6 +340,19 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
             size="sm"
             options={FILTER_CATEGORY_DROPDOWN_OPTIONS}
           />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="btn btn-ghost btn-sm"
+              style={{ height: '32px', fontSize: '0.74rem', color: 'var(--primary)', gap: '4px' }}
+              title="Reset active search and category filters"
+            >
+              <X size={12} />
+              <span>Reset</span>
+            </button>
+          )}
 
           {onOpenStandupModal && (
             <button
@@ -331,6 +402,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           <Plus size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           <input
             type="text"
+            className="quick-add-task-input"
             placeholder="Quick add a new task (Type title and press Enter)..."
             value={quickTitle}
             onChange={(e) => setQuickTitle(e.target.value)}
@@ -433,25 +505,29 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
         >
           {COLUMNS.map(col => {
             const colTasks = filteredTasks.filter(t => t.status === col.id);
+            const isDropTarget = dragOverColId === col.id && draggingTaskId !== null;
             return (
               <div
                 key={col.id}
-                onDragOver={col.id === 'todo' ? handleDragOver : undefined}
-                onDrop={col.id === 'todo' ? (e) => handleDrop(e, col.id) : undefined}
+                onDragOver={(e) => handleDragOver(e, col.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, col.id)}
+                className="kanban-column"
                 style={{
                   flex: '0 0 min(86vw, 320px)',
                   minWidth: 'min(86vw, 300px)',
                   maxWidth: '330px',
                   scrollSnapAlign: 'center',
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-card)',
+                  background: isDropTarget ? 'var(--primary-light)' : 'var(--bg-card)',
+                  border: `1px solid ${isDropTarget ? 'var(--primary)' : 'var(--border-card)'}`,
                   borderRadius: 'var(--radius-lg)',
                   display: 'flex',
                   flexDirection: 'column',
                   padding: '16px',
                   boxShadow: 'var(--shadow-sm)',
                   backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)'
+                  WebkitBackdropFilter: 'blur(16px)',
+                  transition: 'border-color 140ms var(--ease-out), background-color 140ms var(--ease-out)'
                 }}
               >
                 {/* Column Header */}
@@ -491,15 +567,21 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     const nextStatus = getNextStatus(task.status);
                     const isClaimedByMe = task.assigneeId === currentMember.id;
                     const isUnassigned = !task.assigneeId;
-                    const canStageByDrag = isOwner && task.status === 'backlog';
+                    const canStageByDrag =
+                      task.status !== 'done' &&
+                      (isOwner || isClaimedByMe || (isUnassigned && (task.status === 'todo' || task.status === 'backlog')));
 
                     return (
                       <div
                         key={task.id}
                         draggable={canStageByDrag}
                         onDragStart={canStageByDrag ? (e) => handleDragStart(e, task.id) : undefined}
+                        onDragEnd={() => {
+                          setDraggingTaskId(null);
+                          setDragOverColId(null);
+                        }}
                         onClick={() => setSelectedTicketId(task.id)}
-                        className="minimal-bento-card"
+                        className="minimal-bento-card kanban-card"
                         style={{
                           padding: '14px',
                           cursor: 'pointer',
@@ -845,20 +927,23 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
       ) : (
         /* 4. List View */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 100px',
-            padding: '10px 16px',
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-card)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.7rem',
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-            fontFamily: 'var(--font-mono)'
-          }}>
+          <div
+            className="kanban-list-header"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 100px',
+              padding: '10px 16px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-card)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              fontFamily: 'var(--font-mono)'
+            }}
+          >
             <span>Task Deliverable</span>
             <span>Category</span>
             <span>Assignee</span>
@@ -870,7 +955,6 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {filteredTasks.map(task => {
               const assignee = members.find(m => m.id === task.assigneeId);
-              const isClaimedByMe = task.assigneeId === currentMember.id;
               const isUnassigned = !task.assigneeId;
 
               return (
@@ -888,7 +972,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                     cursor: 'pointer',
                     transition: 'all 140ms var(--ease-out)'
                   }}
-                  className="dropdown-option-hover"
+                  className="dropdown-option-hover kanban-list-row"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, paddingRight: '12px' }}>
                     {isUnassigned ? (

@@ -64,10 +64,10 @@ const ROLES = [
   },
   {
     id: 'researcher',
-    title: 'Technical Writer & QA Lead',
-    tag: 'QA • APA 7TH MANUSCRIPT',
+    title: 'QA & Code Structure Auditor',
+    tag: 'QA • CODE STRUCTURE & FORMAT',
     badgeClass: 'badge-secondary',
-    desc: 'Chapters 1–5 manuscript documentation, APA 7th compliance, ISO 25010 testing, and revisions.',
+    desc: 'Code structure validation, formatting standards, static analysis, and automated testing.',
     icon: FileText,
     accent: '#a855f7',
     glow: 'rgba(168, 85, 247, 0.22)'
@@ -77,7 +77,7 @@ const ROLES = [
     title: 'Faculty Capstone Adviser',
     tag: 'FACULTY • SUPERVISOR',
     badgeClass: 'badge-neutral',
-    desc: 'Academic oversight, chapter critique, milestone sign-offs, and defense endorsements.',
+    desc: 'Technical output evaluation, code structure review, milestone sign-offs, and defense endorsements.',
     icon: GraduationCap,
     accent: '#94a3b8',
     glow: 'rgba(148, 163, 184, 0.22)'
@@ -467,10 +467,10 @@ export const OnboardingWizardModal: React.FC<OnboardingWizardModalProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <h4 style={{ fontSize: '1.02rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                      Set Active Milestone & Thesis Sprint Phase
+                      Set Active Milestone & Output Sprint Phase
                     </h4>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '3px 0 0 0' }}>
-                      This organizes your Gantt roadmap, defense deliverables checklist, and chapter status.
+                      This organizes your Gantt roadmap, output deliverables checklist, and code verification status.
                     </p>
                   </div>
                   <span style={{

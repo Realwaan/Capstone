@@ -12,7 +12,9 @@ import {
   Settings,
   ShieldCheck,
   ChevronRight,
-  Plus
+  Plus,
+  Code2,
+  FolderGit2
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 import { ViewType } from './Sidebar';
@@ -33,11 +35,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenNewRevision,
   onOpenGitHubAuth
 }) => {
-  const { tasks, revisions } = useProject();
+  const { project, tasks, revisions } = useProject();
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
-  const activeTasksCount = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review').length;
+  const activeTasksCount = tasks.filter(t => t.status === 'in_progress' || t.status === 'peer_review' || t.status === 'adviser_review').length;
   const pendingRevisionsCount = revisions.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
+  const hasManuscriptTrack = project?.hasManuscript === true || project?.trackType === 'research_manuscript';
 
   const handleSelect = (view: ViewType) => {
     setActiveView(view);
@@ -45,12 +48,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   };
 
   const moreItems = [
+    { id: 'workspace' as ViewType, label: 'Code & Structure Check', icon: Code2, desc: 'Audit code structure, formatting & auto-format scripts' },
     { id: 'community' as ViewType, label: 'Community Feed', icon: MessageSquareCheck, desc: 'Live discussions, advice & questions' },
     { id: 'predictions' as ViewType, label: 'Defense Predictions', icon: Milestone, desc: 'Milestone forecasts & leaderboard' },
+    ...(hasManuscriptTrack ? [{ id: 'manuscript' as ViewType, label: '5-Chapter Manuscript', icon: BookOpen, desc: 'IMRaD & 5-Chapter thesis progress' }] : []),
     { id: 'revisions' as ViewType, label: 'Adviser Revisions', icon: MessageSquareCheck, badge: pendingRevisionsCount > 0 ? pendingRevisionsCount : undefined, desc: 'Track comments and revisions' },
     { id: 'team' as ViewType, label: 'Team & Standups', icon: Users, desc: 'Member roster & daily standup logs' },
     { id: 'reports' as ViewType, label: 'Progress Reports', icon: FileText, desc: 'Defense readiness, PDF export & audit logs' },
     { id: 'settings' as ViewType, label: 'Settings & Storage', icon: Settings, desc: 'Project settings, theme & JSON backups' },
+    { id: 'projects' as ViewType, label: 'All Projects Hub', icon: FolderGit2, desc: 'Switch or manage organization workspaces' },
   ];
 
   return (
@@ -335,7 +341,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <button
           type="button"
           onClick={() => setIsMoreMenuOpen(true)}
-          className={`mobile-nav-tab ${['revisions', 'team', 'reports', 'settings'].includes(activeView) ? 'active' : ''}`}
+          className={`mobile-nav-tab ${['workspace', 'community', 'predictions', 'manuscript', 'revisions', 'team', 'reports', 'settings'].includes(activeView) ? 'active' : ''}`}
           style={{
             flex: 1,
             position: 'relative',
@@ -346,7 +352,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             gap: '3px',
             background: 'none',
             border: 'none',
-            color: ['revisions', 'team', 'reports', 'settings'].includes(activeView) ? 'var(--primary)' : 'var(--text-muted)',
+            color: ['workspace', 'community', 'predictions', 'manuscript', 'revisions', 'team', 'reports', 'settings'].includes(activeView) ? 'var(--primary)' : 'var(--text-muted)',
             cursor: 'pointer',
             padding: '6px 0',
             minHeight: '44px'

@@ -119,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       }}
     >
       {/* Left: Mobile Hamburger, Org Breadcrumb, Project Switcher & Search Input */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '640px' }}>
+      <div className="navbar-left-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '640px', minWidth: 0 }}>
         {/* Mobile Hamburger Toggle Button */}
         {onToggleMobileSidebar && (
           <button
@@ -138,6 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={onOpenProjectsOverview}
+            className="navbar-org-pill"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -159,7 +160,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', flexShrink: 0 }}>/</span>
+        <span className="navbar-org-divider" style={{ color: 'var(--text-muted)', fontSize: '0.9rem', flexShrink: 0 }}>/</span>
 
         {/* Supabase-style Project Switcher */}
         {onOpenCreateProject && (
@@ -202,7 +203,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             position: 'relative', 
             width: '100%', 
             cursor: 'pointer', 
-            minWidth: '180px',
+            minWidth: '42px',
             display: 'flex',
             alignItems: 'center',
             height: '34px',
@@ -283,11 +284,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Right Action Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div className="navbar-right-group" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         {/* Database Cloud Sync Status Badge */}
         {/* Real-time Cloud Status Badge (Auto-Synced in Background) */}
         <div 
           id="navbar-cloud-status"
+          className="navbar-cloud-badge"
           style={{
             display: 'flex',
             alignItems: 'center',

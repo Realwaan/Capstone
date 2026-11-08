@@ -108,11 +108,11 @@ export const RevisionsView: React.FC<RevisionsViewProps> = ({ onOpenNewRevision 
   ];
 
   const resolutionSuggestions = [
-    'Manuscript text revised',
-    'Code refactored & pushed',
-    'Unit tests added',
-    'Methodology section expanded',
-    'Confusion matrix added',
+    'Code structure refactored & modularized',
+    'Formatting & indentation standardized',
+    'Strict type annotations added',
+    'Unit tests added & passing',
+    'Dead code & unused imports removed',
   ];
 
   return (
@@ -122,14 +122,14 @@ export const RevisionsView: React.FC<RevisionsViewProps> = ({ onOpenNewRevision 
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <h2 style={{ fontSize: '1.45rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              Adviser & Panel Revision Compliance Matrix
+              Code Structure & Output Revision Matrix
             </h2>
             <span className="badge badge-neutral" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
               {stats.total} Directives
             </span>
           </div>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Audit log tracking panel comments, manuscript updates, code resolutions, and faculty sign-offs
+            Audit log tracking code structure critiques, formatting compliance, output fixes, and reviewer sign-offs
           </p>
         </div>
 
@@ -476,7 +476,7 @@ export const RevisionsView: React.FC<RevisionsViewProps> = ({ onOpenNewRevision 
                         onKeyDown={(e) => handleKeyDownAction(e, rev.id)}
                         className="input-field"
                         rows={3}
-                        placeholder="Detail the exact code, architecture, or manuscript modifications implemented..."
+                        placeholder="Detail the exact code structure, formatting, or architectural modifications implemented..."
                         style={{ fontSize: '0.82rem', lineHeight: 1.45 }}
                         autoFocus
                       />

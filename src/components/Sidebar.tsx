@@ -13,7 +13,8 @@ import {
   ChevronRight,
   X,
   MessageSquare,
-  Trophy
+  Trophy,
+  Code2
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 
@@ -29,7 +30,8 @@ export type ViewType =
   | 'revisions' 
   | 'team' 
   | 'reports' 
-  | 'settings';
+  | 'settings'
+  | 'workspace';
 
 interface SidebarProps {
   activeView: ViewType;
@@ -63,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     : ((phases || []).length > 0 ? 'Phase 1' : 'No Phases');
 
   const navItems = [
+    { id: 'workspace' as ViewType, label: 'Code & Structure Check', icon: Code2, badge: 'AUDIT', badgeColor: 'badge-primary' },
     { id: 'dashboard' as ViewType, label: 'Overview', icon: LayoutDashboard },
     { id: 'community' as ViewType, label: 'Community Feed', icon: MessageSquare, badge: 'Live', badgeColor: 'badge-primary' },
     { id: 'predictions' as ViewType, label: 'Defense Predictions', icon: Trophy, badge: 'Active', badgeColor: 'badge-warning' },

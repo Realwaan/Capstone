@@ -73,21 +73,21 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
   };
 
   const chapterOptions = [
-    'Chapter 1: Problem Background',
-    'Chapter 2: Literature Review',
-    'Chapter 3: Methodology',
-    'Chapter 4: Results & Discussion',
-    'Chapter 5: Summary & Conclusion',
-    'System Architecture',
-    'Database & RLS Policies',
+    'Code Structure & Module Layout',
+    'Code Formatting & Indentation',
+    'Type Annotations & Strict Mode',
+    'System Architecture & APIs',
+    'Frontend UI & Responsiveness',
+    'Database Schema & Security',
+    'Automated Tests & Build Output',
   ];
 
   const directiveSuggestions = [
-    'Justify sample size and respondent selection methodology',
-    'Audit in-text citations & references for APA 7th compliance',
-    'Refine architecture flowchart with database relationships',
-    'Include System Usability Scale (SUS) questionnaire results',
-    'Provide comparative latency benchmark across model sizes',
+    'Standardize indentation, spacing, and formatting across module files',
+    'Refactor deeply nested conditionals into clean guard clauses',
+    'Add explicit parameter and return type annotations to exported functions',
+    'Split oversized file into modular single-responsibility components',
+    'Add unit test coverage for edge-case inputs and error handling',
   ];
 
   return createPortal(
@@ -149,10 +149,10 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Log Adviser / Panel Directive
+                Log Code Structure & Output Directive
               </h3>
               <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Record formal critique, methodology requirements, and thesis panel feedback
+                Record code structure findings, formatting feedback, and output verification requirements
               </p>
             </div>
           </div>
@@ -165,12 +165,12 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
         <form onSubmit={handleSubmit} style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
           <div className="grid-cols-2" style={{ gap: '14px' }}>
             <div>
-              <label className="input-label">Directive Source (Adviser / Panelist) *</label>
+              <label className="input-label">Directive Source (Adviser / Reviewer) *</label>
               <input
                 type="text"
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
-                placeholder="e.g. Dr. Jane Doe (Panel Chair)"
+                placeholder="e.g. Lead Code Reviewer / Faculty Adviser"
                 className="input-field"
                 required
                 style={{ fontSize: '0.82rem' }}
@@ -178,12 +178,12 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
             </div>
 
             <div>
-              <label className="input-label">Affected Chapter or Component *</label>
+              <label className="input-label">Affected Module or Component *</label>
               <input
                 type="text"
                 value={chapterOrComponent}
                 onChange={(e) => setChapterOrComponent(e.target.value)}
-                placeholder="e.g. Chapter 3: Methodology"
+                placeholder="e.g. Code Structure & Module Layout"
                 className="input-field"
                 required
                 style={{ fontSize: '0.82rem' }}
@@ -191,11 +191,11 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          {/* Quick Select Chapter Chips */}
+          {/* Quick Select Component Chips */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
               <Tag size={12} style={{ color: 'var(--text-muted)' }} />
-              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>Quick Chapter Select:</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>Quick Target Select:</span>
             </div>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
               {chapterOptions.map((chap) => (
@@ -257,7 +257,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({ isOpen, onClose })
             <textarea
               value={actionTaken}
               onChange={(e) => setActionTaken(e.target.value)}
-              placeholder="Describe the code, manuscript, or architectural modifications implemented..."
+              placeholder="Describe the code structure, formatting, or architectural modifications implemented..."
               className="input-field"
               rows={2}
               style={{ fontSize: '0.82rem', resize: 'none' }}

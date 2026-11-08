@@ -30,7 +30,11 @@ import {
   ShieldCheck,
   Flame,
   Zap,
-  Database
+  Database,
+  Code2,
+  MessageSquare,
+  Trophy,
+  FolderGit2
 } from 'lucide-react';
 import { GitHubIcon } from './GitHubIcon';
 import { startWorkspaceTour } from '../lib/tour';
@@ -126,20 +130,24 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       }
     }));
 
-    // 2. Manuscript Chapters 1–5
-    const chapterItems: CommandItem[] = (chapters || []).map(c => ({
-      id: `chapter-${c.id}`,
-      title: `Chapter ${c.chapterNumber}: ${c.title}`,
-      subtitle: `${c.subtitle} • Status: ${c.adviserStatus.replace('_', ' ').toUpperCase()} • ${c.wordCount || 0}/${c.targetWordCount || 0} words`,
-      category: 'Chapters',
-      icon: BookOpen,
-      badge: `${c.adviserStatus.replace('_', ' ')}`,
-      keywords: `chapter ${c.chapterNumber} ${c.title} ${c.subtitle} manuscript thesis literature methodology results conclusion`,
-      action: () => {
-        setActiveView('manuscript');
-        onClose();
-      }
-    }));
+    const hasManuscriptTrack = project?.hasManuscript === true || project?.trackType === 'research_manuscript';
+
+    // 2. Manuscript Chapters 1–5 (only included when manuscript track is enabled)
+    const chapterItems: CommandItem[] = hasManuscriptTrack
+      ? (chapters || []).map(c => ({
+          id: `chapter-${c.id}`,
+          title: `Chapter ${c.chapterNumber}: ${c.title}`,
+          subtitle: `${c.subtitle} • Status: ${c.adviserStatus.replace('_', ' ').toUpperCase()} • ${c.wordCount || 0}/${c.targetWordCount || 0} words`,
+          category: 'Chapters',
+          icon: BookOpen,
+          badge: `${c.adviserStatus.replace('_', ' ')}`,
+          keywords: `chapter ${c.chapterNumber} ${c.title} ${c.subtitle} manuscript thesis literature methodology results conclusion`,
+          action: () => {
+            setActiveView('manuscript');
+            onClose();
+          }
+        }))
+      : [];
 
     // 3. Adviser Directives & Revisions
     const revisionItems: CommandItem[] = (revisions || []).map(r => ({
@@ -158,14 +166,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     // 4. Navigation Views
     const navigation: CommandItem[] = [
+      { id: 'nav-projects', title: 'All Projects Portal & Cohort Hub', subtitle: 'Switch workspaces, join via invite code, or create a new project', category: 'Navigation', icon: FolderGit2, keywords: 'projects portal hub organization switch join', action: () => { setActiveView('projects'); onClose(); } },
       { id: 'nav-dashboard', title: 'Overview Dashboard & Telemetry', subtitle: 'Sprint burndown, velocity, and readiness stats', category: 'Navigation', icon: LayoutDashboard, keywords: 'dashboard home overview burndown telemetry', action: () => { setActiveView('dashboard'); onClose(); } },
+      { id: 'nav-workspace', title: 'Code Structure & Format Checker', subtitle: 'Audit code structure, formatting rules, nesting depth, and auto-format files', category: 'Navigation', icon: Code2, keywords: 'workspace luau code structure format lint checker ide editor script', action: () => { setActiveView('workspace'); onClose(); } },
       { id: 'nav-kanban', title: 'Task Matrix & Kanban Board', subtitle: 'Drag & drop task board with ticket claiming', category: 'Navigation', icon: KanbanSquare, keywords: 'kanban tasks matrix board backlog in progress done', action: () => { setActiveView('kanban'); onClose(); } },
+      { id: 'nav-community', title: 'Community Feed & Peer Discussions', subtitle: 'Live cohort discussions, architectural Q&A, and advice', category: 'Navigation', icon: MessageSquare, keywords: 'community feed forum discussions chat questions', action: () => { setActiveView('community'); onClose(); } },
+      { id: 'nav-predictions', title: 'Defense Predictions & Readiness Forecasts', subtitle: 'Milestone readiness forecasts and cohort leaderboard', category: 'Navigation', icon: Trophy, keywords: 'predictions defense forecast leaderboard odds', action: () => { setActiveView('predictions'); onClose(); } },
       { id: 'nav-github', title: 'GitHub Repository Hub', subtitle: 'Branch status, commits, pull requests, and Git issues', category: 'Navigation', icon: GitHubIcon, keywords: 'github git commits branches pr repository code', action: () => { setActiveView('github'); onClose(); } },
       { id: 'nav-timeline', title: 'Milestones & Gantt Roadmap', subtitle: 'Phase progression, defense target dates, and deliverables', category: 'Navigation', icon: Milestone, keywords: 'timeline milestones gantt roadmap schedule defense date', action: () => { setActiveView('timeline'); onClose(); } },
-      { id: 'nav-manuscript', title: 'Thesis Manuscript & Chapters 1–5', subtitle: 'Drafting portal with APA 7th format compliance', category: 'Navigation', icon: BookOpen, keywords: 'manuscript thesis paper document chapters book write', action: () => { setActiveView('manuscript'); onClose(); } },
-      { id: 'nav-revisions', title: 'Adviser Directives & Revisions Table', subtitle: 'Compliance matrix and faculty sign-off records', category: 'Navigation', icon: MessageSquareCheck, keywords: 'revisions feedback faculty adviser critique comments', action: () => { setActiveView('revisions'); onClose(); } },
+      ...(hasManuscriptTrack ? [{ id: 'nav-manuscript', title: 'Thesis Manuscript & Chapters 1–5', subtitle: 'Optional manuscript drafting portal', category: 'Navigation' as const, icon: BookOpen, keywords: 'manuscript thesis paper document chapters book write', action: () => { setActiveView('manuscript'); onClose(); } }] : []),
+      { id: 'nav-revisions', title: 'Code Review & Adviser Revisions Matrix', subtitle: 'Compliance matrix for code structure, formatting, and output sign-offs', category: 'Navigation', icon: MessageSquareCheck, keywords: 'revisions feedback faculty adviser critique comments code review', action: () => { setActiveView('revisions'); onClose(); } },
       { id: 'nav-team', title: 'Team Directory & Standups', subtitle: 'Teammates presence, roles, and async check-ins', category: 'Navigation', icon: Users, keywords: 'team members standup roles who is online presence', action: () => { setActiveView('team'); onClose(); } },
-      { id: 'nav-reports', title: 'Progress Reports & PDF Export', subtitle: 'Defense panel summaries and institutional printouts', category: 'Navigation', icon: FileText, keywords: 'reports export pdf summary institutional metrics', action: () => { setActiveView('reports'); onClose(); } },
+      { id: 'nav-reports', title: 'Progress Reports & PDF Export', subtitle: 'Output verification summaries and sprint burndown reports', category: 'Navigation', icon: FileText, keywords: 'reports export pdf summary institutional metrics', action: () => { setActiveView('reports'); onClose(); } },
       { id: 'nav-settings', title: 'Workspace Settings & Cloud Sync', subtitle: 'Supabase PostgreSQL sync, Gemini API, and Discord webhooks', category: 'Navigation', icon: Settings, keywords: 'settings config supabase gemini discord database backup', action: () => { setActiveView('settings'); onClose(); } }
     ];
 
@@ -198,7 +210,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       {
         id: 'act-tour',
         title: 'Start Interactive Guided Tour (Driver.js)',
-        subtitle: 'Spotlight walkthrough across defense countdown, task board, and manuscript',
+        subtitle: 'Spotlight walkthrough across output milestones, task board, and code structure checks',
         category: 'Actions',
         icon: Compass,
         keywords: 'tour help guide walkthrough onboarding tutorial driver',

@@ -88,11 +88,11 @@ export const OnboardingChecklistBanner: React.FC<OnboardingChecklistBannerProps>
     },
     {
       id: 'manuscript',
-      title: 'Review Manuscript & Revisions',
-      description: 'Track Chapter drafts and adviser compliance matrix.',
+      title: 'Verify Code Structure & Format',
+      description: 'Run code structure & formatting checks or review QA feedback.',
       done: hasReviewedManuscript,
-      actionLabel: 'View Manuscript',
-      action: () => setActiveView('manuscript'),
+      actionLabel: 'Check Code',
+      action: () => setActiveView('workspace'),
       icon: BookOpen
     }
   ];

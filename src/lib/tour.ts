@@ -38,7 +38,7 @@ export const startWorkspaceTour = () => {
       element: '#navbar-countdown-ticker',
       popover: {
         title: `${icon(ICONS.clock)}Target Defense Countdown`,
-        description: 'Live countdown ticker to your thesis defense deadline. Keeps the entire research team synchronized on milestone delivery.',
+        description: 'Live countdown ticker to your target capstone output evaluation. Keeps the entire engineering team synchronized on milestone delivery.',
         side: 'bottom',
         align: 'center'
       }
@@ -47,7 +47,7 @@ export const startWorkspaceTour = () => {
       element: '#sidebar-nav',
       popover: {
         title: `${icon(ICONS.folder)}Workspace Command Center`,
-        description: 'Your unified navigation hub. Switch between Kanban backlog, Manuscript Chapters 1–5, Git Telemetry, and Defense Reports.',
+        description: 'Your unified navigation hub. Switch between Code Structure & Format Checks, Kanban backlog, Git Telemetry, and Output Reports.',
         side: 'right',
         align: 'start'
       }
@@ -56,16 +56,16 @@ export const startWorkspaceTour = () => {
       element: '#sidebar-kanban',
       popover: {
         title: `${icon(ICONS.target)}Sprint Task Matrix`,
-        description: 'Manage sprint backlog deliverables, claim tickets with 1-click, and verify ISO 25010 defense-required items.',
+        description: 'Manage sprint backlog deliverables, claim tickets with 1-click, and verify output-required items.',
         side: 'right',
         align: 'start'
       }
     },
     {
-      element: '#sidebar-manuscript',
+      element: '#sidebar-workspace',
       popover: {
-        title: `${icon(ICONS.bookOpen)}Thesis Manuscript & Chapters`,
-        description: 'Collaborative thesis writing portal. Draft Chapters 1–5 with APA 7th compliance, research matrices, and adviser sign-offs.',
+        title: `${icon(ICONS.bookOpen)}Code Structure & Format Checker`,
+        description: 'Output-based code verification studio. Check module structure, indentation, nesting depth, and auto-format scripts.',
         side: 'right',
         align: 'start'
       }
